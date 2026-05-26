@@ -7,7 +7,7 @@ import {
   approveBooking, rejectBooking, returnBooking,
   getConfig, saveConfig,
 } from '@/services/dbService';
-import { captureFromCamera, pickFromGallery } from '@/services/imageUploadService';
+import { captureFromCamera, pickFromGallery, uploadToCloudinary } from '@/services/imageUploadService';
 import { onBookingStatusChanged } from '@/services/notificationService';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -122,6 +122,8 @@ export default function AdminPage() {
       saveConfig({
         welcomeHeading: config.welcomeHeading.trim(),
         welcomeSubtitle: config.welcomeSubtitle.trim(),
+        cloudinaryCloudName: config.cloudinaryCloudName.trim(),
+        cloudinaryUploadPreset: config.cloudinaryUploadPreset.trim(),
       });
       showToast('Pengaturan berhasil disimpan!', 'success');
     } catch { showToast('Gagal menyimpan pengaturan', 'error'); }
@@ -144,7 +146,10 @@ export default function AdminPage() {
     }
     setFormSubmitting(true);
     try {
-      await addItem(formName.trim(), Number(formQty), formImage);
+      const imageUrl = formImage
+        ? await uploadToCloudinary(formImage, config.cloudinaryCloudName, config.cloudinaryUploadPreset)
+        : null;
+      await addItem(formName.trim(), Number(formQty), imageUrl);
       showToast('Barang berhasil ditambahkan', 'success');
       setAddModal(false); setFormName(''); setFormQty(''); setFormImage(null);
       loadData();
@@ -165,7 +170,7 @@ export default function AdminPage() {
         totalQty: Number(formQty),
         availableQty: editItem.availableQty + diff,
       };
-      if (formImage) updates.imageUrl = formImage;
+      if (formImage) updates.imageUrl = await uploadToCloudinary(formImage, config.cloudinaryCloudName, config.cloudinaryUploadPreset);
       await updateItem(editItem.id, updates);
       showToast('Barang berhasil diperbarui', 'success');
       setEditModal(false); setEditItem(null); setFormName(''); setFormQty(''); setFormImage(null);
@@ -239,7 +244,8 @@ export default function AdminPage() {
   const handleItemImageUpdate = async (item) => {
     try {
       const dataUrl = await pickFromGallery();
-      await updateItem(item.id, { imageUrl: dataUrl });
+      const url = await uploadToCloudinary(dataUrl, config.cloudinaryCloudName, config.cloudinaryUploadPreset);
+      await updateItem(item.id, { imageUrl: url });
       showToast('Gambar berhasil diperbarui', 'success');
       loadData();
     } catch (err) {
@@ -451,6 +457,33 @@ export default function AdminPage() {
                     className="input-field resize-none"
                     rows={3}
                     placeholder="Mau ambil atau cek barang inventaris? ..."
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="card-dark">
+              <h3 className="font-semibold text-sm text-[#E2E8F0] mb-1">Cloudinary</h3>
+              <p className="text-xs text-[#64748B] mb-3">Biar gambar bisa diakses dari HP. Daftar gratis di <a href="https://cloudinary.com" target="_blank" rel="noopener noreferrer" className="text-primary-400 underline">cloudinary.com</a>, masukin Cloud Name & Upload Preset (unsigned) di sini.</p>
+              <div className="space-y-3.5">
+                <div>
+                  <label className="text-xs font-semibold text-[#94A3B8] mb-1.5 block">Cloud Name</label>
+                  <input
+                    type="text"
+                    value={config.cloudinaryCloudName}
+                    onChange={e => setConfig(p => ({ ...p, cloudinaryCloudName: e.target.value }))}
+                    className="input-field"
+                    placeholder="my-project"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-[#94A3B8] mb-1.5 block">Upload Preset (unsigned)</label>
+                  <input
+                    type="text"
+                    value={config.cloudinaryUploadPreset}
+                    onChange={e => setConfig(p => ({ ...p, cloudinaryUploadPreset: e.target.value }))}
+                    className="input-field"
+                    placeholder="my_unsigned_preset"
                   />
                 </div>
                 <button

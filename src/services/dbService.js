@@ -357,6 +357,8 @@ export const returnBooking = async (bookingId) => {
 const DEFAULT_CONFIG = {
   welcomeHeading: 'Halo!',
   welcomeSubtitle: 'Mau ambil atau cek barang inventaris? Silakan cek ketersediaan barang atau lihat status booking kamu di bawah ini, ya.',
+  cloudinaryCloudName: '',
+  cloudinaryUploadPreset: '',
 };
 
 export const getConfig = () => {

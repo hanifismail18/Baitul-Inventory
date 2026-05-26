@@ -46,3 +46,32 @@ const pickImage = (capture = false) => {
 
 export const captureFromCamera = () => pickImage(true);
 export const pickFromGallery = () => pickImage(false);
+
+const dataUrlToBlob = (dataUrl) => {
+  const byteString = atob(dataUrl.split(',')[1]);
+  const mimeString = dataUrl.split(',')[0].split(':')[1].split(';')[0];
+  const ab = new ArrayBuffer(byteString.length);
+  const ia = new Uint8Array(ab);
+  for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+  return new Blob([ab], { type: mimeString });
+};
+
+export const uploadToCloudinary = async (dataUrl, cloudName, uploadPreset) => {
+  if (!cloudName || !uploadPreset) return dataUrl;
+  try {
+    const blob = dataUrlToBlob(dataUrl);
+    const formData = new FormData();
+    formData.append('file', blob);
+    formData.append('upload_preset', uploadPreset);
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) throw new Error(`Cloudinary: ${res.status}`);
+    const json = await res.json();
+    return json.secure_url;
+  } catch (e) {
+    console.warn('Cloudinary upload failed, using base64 fallback:', e.message);
+    return dataUrl;
+  }
+};
