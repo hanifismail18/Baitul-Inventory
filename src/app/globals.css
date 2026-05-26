@@ -1,0 +1,213 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    @apply bg-dark-bg text-[#E2E8F0];
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-dark-bg antialiased;
+  }
+
+  ::selection {
+    @apply bg-primary-500/30 text-white;
+  }
+
+  /* Custom scrollbar for dark theme */
+  ::-webkit-scrollbar {
+    width: 3px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-dark-border-light rounded-full;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center font-medium
+           active:scale-[0.97] transition-all duration-200
+           disabled:opacity-40 disabled:cursor-not-allowed
+           select-none;
+  }
+
+  .btn-primary {
+    @apply btn bg-primary-500 text-white px-6 py-3.5 rounded-2xl
+           shadow-[0_4px_20px_rgba(99,102,241,0.25)]
+           hover:shadow-[0_6px_28px_rgba(99,102,241,0.35)]
+           hover:bg-primary-400;
+  }
+
+  .btn-secondary {
+    @apply btn bg-dark-card text-[#94A3B8] px-6 py-3.5 rounded-2xl
+           border border-dark-border
+           hover:bg-dark-card-hover hover:text-[#E2E8F0];
+  }
+
+  .btn-ghost {
+    @apply btn text-[#64748B] px-4 py-2 rounded-xl
+           hover:bg-dark-card-hover hover:text-[#E2E8F0];
+  }
+
+  .card-dark {
+    @apply bg-dark-card rounded-2xl px-5 py-4 border border-dark-border;
+  }
+
+  .card-elevated {
+    @apply card-dark shadow-[0_4px_24px_rgba(0,0,0,0.2)];
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3.5 rounded-2xl border border-dark-border-light
+           bg-dark-card text-sm text-[#E2E8F0]
+           placeholder:text-[#475569]
+           focus:border-primary-500 focus:ring-2 focus:ring-primary-500/15
+           outline-none transition-all duration-200;
+  }
+
+  .chip {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium;
+  }
+
+  .chip-green {
+    @apply chip bg-emerald-500/10 text-emerald-400 border border-emerald-500/20;
+  }
+
+  .chip-yellow {
+    @apply chip bg-amber-500/10 text-amber-400 border border-amber-500/20;
+  }
+
+  .chip-red {
+    @apply chip bg-red-500/10 text-red-400 border border-red-500/20;
+  }
+
+  .chip-blue {
+    @apply chip bg-primary-500/10 text-primary-400 border border-primary-500/20;
+  }
+
+  .menu-card {
+    @apply bg-dark-card rounded-2xl p-5 border border-dark-border
+           active:scale-[0.98] transition-all duration-200
+           cursor-pointer select-none
+           hover:border-dark-border-light hover:bg-dark-card-hover;
+  }
+
+  .menu-card-active {
+    @apply menu-card border-primary-500/40 bg-primary-500/5
+           shadow-[0_0_0_1px_rgba(99,102,241,0.3),0_8px_32px_rgba(99,102,241,0.12)];
+  }
+
+  .overlay-modal {
+    @apply fixed inset-0 z-50 flex items-end justify-center;
+  }
+
+  .overlay-modal > .backdrop {
+    @apply absolute inset-0 bg-black/60 backdrop-blur-md;
+  }
+
+  .overlay-modal > .sheet {
+    @apply relative bg-dark-surface w-full max-w-md rounded-t-3xl
+           max-h-[90vh] overflow-y-auto animate-sheet-up;
+  }
+
+  .divider {
+    @apply h-px bg-dark-border;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Keyframes */
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes toast-in {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-sheet-up {
+  animation: sheet-up 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.3s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
+}
+
+.animate-toast-in {
+  animation: toast-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-spin {
+  animation: spin-slow 0.6s linear infinite;
+}
