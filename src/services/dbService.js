@@ -11,7 +11,7 @@ const STORAGE_KEYS = {
   CONFIG: 'baitul_config',
 };
 
-const NPUNT_BASE = 'https://api.npoint.io';
+const SYNC_BASE = 'https://jsonblob.com/api/jsonBlob';
 
 let firestoreFailed = false;
 
@@ -53,16 +53,16 @@ const withTimeout = (promise, ms = 4000) =>
     new Promise((_, reject) => setTimeout(() => reject(new Error(`Firestore timeout after ${ms}ms`)), ms)),
   ]);
 
-const getNpointDocId = () => {
+const getSyncDocId = () => {
   const config = ls.get(STORAGE_KEYS.CONFIG) || {};
-  return config.npointDocId;
+  return config.npointDocId || DEFAULT_CONFIG.npointDocId;
 };
 
-const pushToNpoint = async () => {
-  const docId = getNpointDocId();
+const pushToSync = async () => {
+  const docId = getSyncDocId();
   if (!docId) return;
   try {
-    await fetch(`${NPUNT_BASE}/${docId}`, {
+    await fetch(`${SYNC_BASE}/${docId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -72,19 +72,19 @@ const pushToNpoint = async () => {
       }),
     });
   } catch (e) {
-    console.warn('npoint push failed:', e.message);
+    console.warn('sync push failed:', e.message);
   }
 };
 
-const pullFromNpoint = async () => {
-  const docId = getNpointDocId();
+const pullFromSync = async () => {
+  const docId = getSyncDocId();
   if (!docId) return null;
   try {
-    const res = await fetch(`${NPUNT_BASE}/${docId}`);
-    if (!res.ok) throw new Error(`npoint: ${res.status}`);
+    const res = await fetch(`${SYNC_BASE}/${docId}`);
+    if (!res.ok) throw new Error(`sync: ${res.status}`);
     return await res.json();
   } catch (e) {
-    console.warn('npoint pull failed:', e.message);
+    console.warn('sync pull failed:', e.message);
     return null;
   }
 };
@@ -120,7 +120,7 @@ export const addItem = async (name, totalQty, imageUrl = null) => {
   };
   items.push(newItem);
   ls.set(STORAGE_KEYS.ITEMS, items);
-  await pushToNpoint();
+  await pushToSync();
   return newItem;
 };
 
@@ -141,7 +141,7 @@ export const updateItem = async (id, updates) => {
   if (idx === -1) throw new Error('Item not found');
   items[idx] = { ...items[idx], ...updates };
   ls.set(STORAGE_KEYS.ITEMS, items);
-  await pushToNpoint();
+  await pushToSync();
   return items[idx];
 };
 
@@ -159,7 +159,7 @@ export const deleteItem = async (id) => {
   }
   const items = ls.get(STORAGE_KEYS.ITEMS) || [];
   ls.set(STORAGE_KEYS.ITEMS, items.filter(i => i.id !== id));
-  await pushToNpoint();
+  await pushToSync();
 };
 
 // ─── BOOKINGS ─────────────────────────────────────────────────────────────────
@@ -205,7 +205,7 @@ export const getBookings = async () => {
     }
   }
   // try npoint sync
-  const npointData = await pullFromNpoint();
+  const npointData = await pullFromSync();
   if (npointData && npointData.bookings) {
     ls.set(STORAGE_KEYS.BOOKINGS, npointData.bookings);
     ls.set(STORAGE_KEYS.ITEMS, npointData.items || []);
@@ -231,7 +231,7 @@ export const getItems = async () => {
     }
   }
   // try npoint sync
-  const npointData = await pullFromNpoint();
+  const npointData = await pullFromSync();
   if (npointData && npointData.items) {
     ls.set(STORAGE_KEYS.ITEMS, npointData.items);
     ls.set(STORAGE_KEYS.BOOKINGS, npointData.bookings || []);
@@ -275,7 +275,7 @@ export const addBooking = async (bookingData) => {
   };
   bookings.unshift(newBooking);
   ls.set(STORAGE_KEYS.BOOKINGS, bookings);
-  await pushToNpoint();
+  await pushToSync();
   return newBooking;
 };
 
@@ -336,7 +336,7 @@ export const approveBooking = async (bookingId) => {
   items[iIdx].availableQty = item.availableQty - booking.qty;
   ls.set(STORAGE_KEYS.ITEMS, items);
 
-  await pushToNpoint();
+  await pushToSync();
   return true;
 };
 
@@ -357,7 +357,7 @@ export const rejectBooking = async (bookingId) => {
   if (idx === -1) throw new Error('Booking not found');
   bookings[idx].status = 'rejected';
   ls.set(STORAGE_KEYS.BOOKINGS, bookings);
-  await pushToNpoint();
+  await pushToSync();
 };
 
 export const pickupBooking = async (bookingId) => {
@@ -381,7 +381,7 @@ export const pickupBooking = async (bookingId) => {
   bookings[idx].status = 'picked_up';
   bookings[idx].pickedUpAt = new Date().toISOString();
   ls.set(STORAGE_KEYS.BOOKINGS, bookings);
-  await pushToNpoint();
+  await pushToSync();
   return true;
 };
 
@@ -422,7 +422,7 @@ export const returnBooking = async (bookingId) => {
     items[iIdx].availableQty = (items[iIdx].availableQty || 0) + booking.qty;
     ls.set(STORAGE_KEYS.ITEMS, items);
   }
-  await pushToNpoint();
+  await pushToSync();
   return true;
 };
 
@@ -431,7 +431,7 @@ const DEFAULT_CONFIG = {
   welcomeSubtitle: 'Mau ambil atau cek barang inventaris? Silakan cek ketersediaan barang atau lihat status booking kamu di bawah ini, ya.',
   cloudinaryCloudName: '',
   cloudinaryUploadPreset: '',
-  npointDocId: '',
+  npointDocId: '7a1c2f35-4d17-454b-a0c8-f48d7e5e6bf3',
 };
 
 export const getConfig = () => {
@@ -444,5 +444,5 @@ export const saveConfig = async (updates) => {
   if (typeof window === 'undefined') return;
   const current = ls.get(STORAGE_KEYS.CONFIG) || {};
   ls.set(STORAGE_KEYS.CONFIG, { ...current, ...updates });
-  await pushToNpoint();
+  await pushToSync();
 };

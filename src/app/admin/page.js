@@ -133,7 +133,7 @@ export default function AdminPage() {
 
   const handleCreateNpointDoc = async () => {
     try {
-      const res = await fetch('https://api.npoint.io/', {
+      const res = await fetch('https://jsonblob.com/api/jsonBlob', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -142,12 +142,11 @@ export default function AdminPage() {
           config: {},
         }),
       });
-      if (!res.ok) throw new Error(`npoint: ${res.status}`);
-      const json = await res.json();
-      const docId = json.id || json.url?.split('/').pop();
-      if (!docId) throw new Error('Gagal mendapatkan ID');
-      setConfig(p => ({ ...p, npointDocId: docId }));
-      showToast('Dokumen berhasil dibuat! Jangan lupa simpan pengaturan.', 'success');
+      if (!res.ok) throw new Error(`jsonblob: ${res.status}`);
+      const id = res.headers.get('x-jsonblob-id') || res.headers.get('location')?.split('/').pop();
+      if (!id) throw new Error('Gagal mendapatkan ID');
+      setConfig(p => ({ ...p, npointDocId: id }));
+      showToast('Dokumen baru berhasil dibuat! Jangan lupa simpan.', 'success');
     } catch {
       showToast('Gagal membuat dokumen. Coba lagi.', 'error');
     }
@@ -514,24 +513,19 @@ export default function AdminPage() {
 
             <div className="card-dark">
               <h3 className="font-semibold text-sm text-[#E2E8F0] mb-1">Sinkronisasi Data</h3>
-              <p className="text-xs text-[#64748B] mb-3">Biar data barang, booking, dan gambar nyambung antara laptop & HP. Dokumen ID-nya otomatis dibuat, tinggal salin & tempel di perangkat lain.</p>
+              <p className="text-xs text-[#64748B] mb-3">Biar data barang, booking, dan gambar nyambung antara laptop & HP. Dokumen ID sudah otomatis, tinggal simpan pengaturan aja.</p>
               <div className="space-y-3.5">
                 <div>
-                  <label className="text-xs font-semibold text-[#94A3B8] mb-1.5 block">Dokumen ID (npoint.io)</label>
+                  <label className="text-xs font-semibold text-[#94A3B8] mb-1.5 block">Dokumen ID (jsonblob.com)</label>
                   <input
                     type="text"
                     value={config.npointDocId}
                     onChange={e => setConfig(p => ({ ...p, npointDocId: e.target.value }))}
                     className="input-field"
-                    placeholder="Klik 'Buat Baru' untuk generate"
+                    placeholder="ID dokumen"
                   />
+                  <p className="text-[10px] text-[#64748B] mt-1">Default udah ada, semua device pake ID ini. Ganti cuma kalo mau reset data.</p>
                 </div>
-                <button
-                  onClick={handleCreateNpointDoc}
-                  className="w-full py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-sm font-semibold active:scale-[0.97] transition-all"
-                >
-                  Buat Dokumen Baru
-                </button>
               </div>
             </div>
 
