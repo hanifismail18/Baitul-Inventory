@@ -204,12 +204,15 @@ export const getBookings = async () => {
       }
     }
   }
-  // try npoint sync
-  const npointData = await pullFromSync();
-  if (npointData && npointData.bookings) {
-    ls.set(STORAGE_KEYS.BOOKINGS, npointData.bookings);
-    ls.set(STORAGE_KEYS.ITEMS, npointData.items || []);
-    ls.set(STORAGE_KEYS.CONFIG, npointData.config || {});
+  // try pull from sync only if local data is empty
+  const localItems = ls.get(STORAGE_KEYS.ITEMS) || [];
+  if (localItems.length === 0 || localItems.every(i => i.id?.startsWith('demo') || i.id?.startsWith('item_'))) {
+    const npointData = await pullFromSync();
+    if (npointData && npointData.bookings) {
+      ls.set(STORAGE_KEYS.BOOKINGS, npointData.bookings);
+      ls.set(STORAGE_KEYS.ITEMS, npointData.items || []);
+      ls.set(STORAGE_KEYS.CONFIG, npointData.config || {});
+    }
   }
   const bookings = ls.get(STORAGE_KEYS.BOOKINGS) || [];
   const items = ls.get(STORAGE_KEYS.ITEMS) || [];
@@ -230,12 +233,15 @@ export const getItems = async () => {
       }
     }
   }
-  // try npoint sync
-  const npointData = await pullFromSync();
-  if (npointData && npointData.items) {
-    ls.set(STORAGE_KEYS.ITEMS, npointData.items);
-    ls.set(STORAGE_KEYS.BOOKINGS, npointData.bookings || []);
-    ls.set(STORAGE_KEYS.CONFIG, npointData.config || {});
+  // try pull from sync only if local data is empty or default
+  const localItems = ls.get(STORAGE_KEYS.ITEMS) || [];
+  if (localItems.length === 0 || localItems.every(i => i.id?.startsWith('demo') || i.id?.startsWith('item_'))) {
+    const npointData = await pullFromSync();
+    if (npointData && npointData.items) {
+      ls.set(STORAGE_KEYS.ITEMS, npointData.items);
+      ls.set(STORAGE_KEYS.BOOKINGS, npointData.bookings || []);
+      ls.set(STORAGE_KEYS.CONFIG, npointData.config || {});
+    }
   }
   const bookings = ls.get(STORAGE_KEYS.BOOKINGS) || [];
   const items = ls.get(STORAGE_KEYS.ITEMS) || [];
