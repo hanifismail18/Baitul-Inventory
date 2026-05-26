@@ -10,6 +10,10 @@ const inter = Inter({ subsets: ['latin'], display: 'swap' });
 export const metadata = {
   title: 'Baitul Garbera',
   description: 'Request & Booking Stock Opname',
+  icons: {
+    icon: '/favicon.svg',
+    apple: '/icon.svg',
+  },
 };
 
 export const viewport = {
@@ -17,6 +21,7 @@ export const viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  themeColor: '#0B0B12',
 };
 
 export default function RootLayout({ children }) {
