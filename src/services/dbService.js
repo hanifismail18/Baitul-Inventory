@@ -61,15 +61,15 @@ const getSyncDocId = () => {
 const pushToSync = async () => {
   const docId = getSyncDocId();
   if (!docId) return;
+  const items = ls.get(STORAGE_KEYS.ITEMS) || [];
+  const bookings = ls.get(STORAGE_KEYS.BOOKINGS) || [];
+  // don't push empty data (first-visit phone would wipe the sync doc)
+  if (items.length === 0 && bookings.length === 0) return;
   try {
     await fetch(SYNC_API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        items: ls.get(STORAGE_KEYS.ITEMS) || [],
-        bookings: ls.get(STORAGE_KEYS.BOOKINGS) || [],
-        config: ls.get(STORAGE_KEYS.CONFIG) || {},
-      }),
+      body: JSON.stringify({ items, bookings, config: ls.get(STORAGE_KEYS.CONFIG) || {} }),
     });
   } catch (e) {
     console.warn('sync push failed:', e.message);
@@ -204,15 +204,13 @@ export const getBookings = async () => {
       }
     }
   }
-  // try pull from sync only if local data is empty
-  const localItems = ls.get(STORAGE_KEYS.ITEMS) || [];
-  if (localItems.length === 0 || localItems.every(i => i.id?.startsWith('demo') || i.id?.startsWith('item_'))) {
-    const npointData = await pullFromSync();
-    if (npointData && npointData.bookings) {
-      ls.set(STORAGE_KEYS.BOOKINGS, npointData.bookings);
-      ls.set(STORAGE_KEYS.ITEMS, npointData.items || []);
-      ls.set(STORAGE_KEYS.CONFIG, npointData.config || {});
-    }
+  // push local first, then pull from sync (sync is authoritative)
+  await pushToSync();
+  const npointData = await pullFromSync();
+  if (npointData && npointData.bookings) {
+    ls.set(STORAGE_KEYS.BOOKINGS, npointData.bookings);
+    ls.set(STORAGE_KEYS.ITEMS, npointData.items || []);
+    ls.set(STORAGE_KEYS.CONFIG, npointData.config || {});
   }
   const bookings = ls.get(STORAGE_KEYS.BOOKINGS) || [];
   const items = ls.get(STORAGE_KEYS.ITEMS) || [];
@@ -233,15 +231,13 @@ export const getItems = async () => {
       }
     }
   }
-  // try pull from sync only if local data is empty or default
-  const localItems = ls.get(STORAGE_KEYS.ITEMS) || [];
-  if (localItems.length === 0 || localItems.every(i => i.id?.startsWith('demo') || i.id?.startsWith('item_'))) {
-    const npointData = await pullFromSync();
-    if (npointData && npointData.items) {
-      ls.set(STORAGE_KEYS.ITEMS, npointData.items);
-      ls.set(STORAGE_KEYS.BOOKINGS, npointData.bookings || []);
-      ls.set(STORAGE_KEYS.CONFIG, npointData.config || {});
-    }
+  // push local first, then pull from sync (sync is authoritative)
+  await pushToSync();
+  const npointData = await pullFromSync();
+  if (npointData && npointData.items) {
+    ls.set(STORAGE_KEYS.ITEMS, npointData.items);
+    ls.set(STORAGE_KEYS.BOOKINGS, npointData.bookings || []);
+    ls.set(STORAGE_KEYS.CONFIG, npointData.config || {});
   }
   const bookings = ls.get(STORAGE_KEYS.BOOKINGS) || [];
   const items = ls.get(STORAGE_KEYS.ITEMS) || [];
