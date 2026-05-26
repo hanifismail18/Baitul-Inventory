@@ -43,7 +43,7 @@ if (typeof window !== 'undefined') {
   seedInitialData();
 }
 
-const withTimeout = (promise, ms = 3000) =>
+const withTimeout = (promise, ms = 8000) =>
   Promise.race([
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error(`Firestore timeout after ${ms}ms`)), ms)),

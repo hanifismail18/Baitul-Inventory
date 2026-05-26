@@ -1,7 +1,6 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
 
 // ─── CARA ISI FIREBASE ────────────────────────────────────────────────────────
 // Opsi A — Lewat .env.local (lebih aman, recommended):
@@ -37,7 +36,6 @@ let app = null;
 let auth = null;
 let googleProvider = null;
 let db = null;
-let storage = null;
 
 if (isConfigured()) {
   if (!getApps().length) {
@@ -48,11 +46,10 @@ if (isConfigured()) {
   auth = getAuth(app);
   googleProvider = new GoogleAuthProvider();
   db = getFirestore(app);
-  storage = getStorage(app);
   console.log("🔥 Firebase berhasil dikonfigurasi");
 } else {
   console.log("ℹ️ Firebase belum dikonfigurasi — menggunakan mode demo");
 }
 
-export { app, auth, googleProvider, db, storage, isConfigured };
+export { app, auth, googleProvider, db, isConfigured };
 export default firebaseConfig;

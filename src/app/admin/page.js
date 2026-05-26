@@ -7,7 +7,7 @@ import {
   approveBooking, rejectBooking, returnBooking,
   getConfig, saveConfig,
 } from '@/services/dbService';
-import { captureFromCamera, pickFromGallery, uploadImageToStorage } from '@/services/imageUploadService';
+import { captureFromCamera, pickFromGallery } from '@/services/imageUploadService';
 import { onBookingStatusChanged } from '@/services/notificationService';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -144,8 +144,7 @@ export default function AdminPage() {
     }
     setFormSubmitting(true);
     try {
-      const url = formImage ? await uploadImageToStorage(formImage) : null;
-      await addItem(formName.trim(), Number(formQty), url);
+      await addItem(formName.trim(), Number(formQty), formImage);
       showToast('Barang berhasil ditambahkan', 'success');
       setAddModal(false); setFormName(''); setFormQty(''); setFormImage(null);
       loadData();
@@ -166,7 +165,7 @@ export default function AdminPage() {
         totalQty: Number(formQty),
         availableQty: editItem.availableQty + diff,
       };
-      if (formImage) updates.imageUrl = await uploadImageToStorage(formImage);
+      if (formImage) updates.imageUrl = formImage;
       await updateItem(editItem.id, updates);
       showToast('Barang berhasil diperbarui', 'success');
       setEditModal(false); setEditItem(null); setFormName(''); setFormQty(''); setFormImage(null);
@@ -240,8 +239,7 @@ export default function AdminPage() {
   const handleItemImageUpdate = async (item) => {
     try {
       const dataUrl = await pickFromGallery();
-      const url = await uploadImageToStorage(dataUrl);
-      await updateItem(item.id, { imageUrl: url });
+      await updateItem(item.id, { imageUrl: dataUrl });
       showToast('Gambar berhasil diperbarui', 'success');
       loadData();
     } catch (err) {
