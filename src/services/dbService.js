@@ -11,7 +11,7 @@ const STORAGE_KEYS = {
   CONFIG: 'baitul_config',
 };
 
-const SYNC_BASE = 'https://jsonblob.com/api/jsonBlob';
+const SYNC_API = '/api/sync';
 
 let firestoreFailed = false;
 
@@ -62,8 +62,8 @@ const pushToSync = async () => {
   const docId = getSyncDocId();
   if (!docId) return;
   try {
-    await fetch(`${SYNC_BASE}/${docId}`, {
-      method: 'PUT',
+    await fetch(SYNC_API, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         items: ls.get(STORAGE_KEYS.ITEMS) || [],
@@ -80,7 +80,7 @@ const pullFromSync = async () => {
   const docId = getSyncDocId();
   if (!docId) return null;
   try {
-    const res = await fetch(`${SYNC_BASE}/${docId}`);
+    const res = await fetch(SYNC_API);
     if (!res.ok) throw new Error(`sync: ${res.status}`);
     return await res.json();
   } catch (e) {
