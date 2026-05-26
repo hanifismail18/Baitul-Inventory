@@ -119,15 +119,38 @@ export default function AdminPage() {
   const handleSaveConfig = async () => {
     setConfigSaving(true);
     try {
-      saveConfig({
+      await saveConfig({
         welcomeHeading: config.welcomeHeading.trim(),
         welcomeSubtitle: config.welcomeSubtitle.trim(),
         cloudinaryCloudName: config.cloudinaryCloudName.trim(),
         cloudinaryUploadPreset: config.cloudinaryUploadPreset.trim(),
+        npointDocId: config.npointDocId.trim(),
       });
       showToast('Pengaturan berhasil disimpan!', 'success');
     } catch { showToast('Gagal menyimpan pengaturan', 'error'); }
     finally { setConfigSaving(false); }
+  };
+
+  const handleCreateNpointDoc = async () => {
+    try {
+      const res = await fetch('https://api.npoint.io/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: [],
+          bookings: [],
+          config: {},
+        }),
+      });
+      if (!res.ok) throw new Error(`npoint: ${res.status}`);
+      const json = await res.json();
+      const docId = json.id || json.url?.split('/').pop();
+      if (!docId) throw new Error('Gagal mendapatkan ID');
+      setConfig(p => ({ ...p, npointDocId: docId }));
+      showToast('Dokumen berhasil dibuat! Jangan lupa simpan pengaturan.', 'success');
+    } catch {
+      showToast('Gagal membuat dokumen. Coba lagi.', 'error');
+    }
   };
 
   const handleImagePick = async (capture) => {
@@ -486,23 +509,47 @@ export default function AdminPage() {
                     placeholder="my_unsigned_preset"
                   />
                 </div>
+              </div>
+            </div>
+
+            <div className="card-dark">
+              <h3 className="font-semibold text-sm text-[#E2E8F0] mb-1">Sinkronisasi Data</h3>
+              <p className="text-xs text-[#64748B] mb-3">Biar data barang, booking, dan gambar nyambung antara laptop & HP. Dokumen ID-nya otomatis dibuat, tinggal salin & tempel di perangkat lain.</p>
+              <div className="space-y-3.5">
+                <div>
+                  <label className="text-xs font-semibold text-[#94A3B8] mb-1.5 block">Dokumen ID (npoint.io)</label>
+                  <input
+                    type="text"
+                    value={config.npointDocId}
+                    onChange={e => setConfig(p => ({ ...p, npointDocId: e.target.value }))}
+                    className="input-field"
+                    placeholder="Klik 'Buat Baru' untuk generate"
+                  />
+                </div>
                 <button
-                  onClick={handleSaveConfig}
-                  disabled={configSaving}
-                  className="btn-primary w-full text-sm"
+                  onClick={handleCreateNpointDoc}
+                  className="w-full py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-sm font-semibold active:scale-[0.97] transition-all"
                 >
-                  {configSaving ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      Menyimpan...
-                    </span>
-                  ) : 'Simpan Pengaturan'}
+                  Buat Dokumen Baru
                 </button>
               </div>
             </div>
+
+            <button
+              onClick={handleSaveConfig}
+              disabled={configSaving}
+              className="btn-primary w-full text-sm"
+            >
+              {configSaving ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Menyimpan...
+                </span>
+              ) : 'Simpan Pengaturan'}
+            </button>
           </div>
         )}
       </div>

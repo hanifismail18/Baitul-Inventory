@@ -11,6 +11,10 @@ const STORAGE_KEYS = {
   CONFIG: 'baitul_config',
 };
 
+const NPUNT_BASE = 'https://api.npoint.io';
+
+let firestoreFailed = false;
+
 const ls = {
   get(key) {
     if (typeof window === 'undefined') return null;
@@ -43,11 +47,47 @@ if (typeof window !== 'undefined') {
   seedInitialData();
 }
 
-const withTimeout = (promise, ms = 8000) =>
+const withTimeout = (promise, ms = 4000) =>
   Promise.race([
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error(`Firestore timeout after ${ms}ms`)), ms)),
   ]);
+
+const getNpointDocId = () => {
+  const config = ls.get(STORAGE_KEYS.CONFIG) || {};
+  return config.npointDocId;
+};
+
+const pushToNpoint = async () => {
+  const docId = getNpointDocId();
+  if (!docId) return;
+  try {
+    await fetch(`${NPUNT_BASE}/${docId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: ls.get(STORAGE_KEYS.ITEMS) || [],
+        bookings: ls.get(STORAGE_KEYS.BOOKINGS) || [],
+        config: ls.get(STORAGE_KEYS.CONFIG) || {},
+      }),
+    });
+  } catch (e) {
+    console.warn('npoint push failed:', e.message);
+  }
+};
+
+const pullFromNpoint = async () => {
+  const docId = getNpointDocId();
+  if (!docId) return null;
+  try {
+    const res = await fetch(`${NPUNT_BASE}/${docId}`);
+    if (!res.ok) throw new Error(`npoint: ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    console.warn('npoint pull failed:', e.message);
+    return null;
+  }
+};
 
 // ─── ITEMS ────────────────────────────────────────────────────────────────────
 
@@ -58,7 +98,7 @@ export const addItem = async (name, totalQty, imageUrl = null) => {
     availableQty: Number(totalQty),
     imageUrl,
   };
-  if (isConfigured()) {
+  if (isConfigured() && !firestoreFailed) {
     try {
       const docRef = await withTimeout(addDoc(collection(db, 'items'), {
         ...itemData,
@@ -66,6 +106,7 @@ export const addItem = async (name, totalQty, imageUrl = null) => {
       }));
       return { id: docRef.id, ...itemData };
     } catch (e) {
+      firestoreFailed = true;
       if (typeof window !== 'undefined') {
         console.warn('Firestore addItem failed, using localStorage fallback:', e.message);
       }
@@ -79,15 +120,17 @@ export const addItem = async (name, totalQty, imageUrl = null) => {
   };
   items.push(newItem);
   ls.set(STORAGE_KEYS.ITEMS, items);
+  await pushToNpoint();
   return newItem;
 };
 
 export const updateItem = async (id, updates) => {
-  if (isConfigured()) {
+  if (isConfigured() && !firestoreFailed) {
     try {
       await withTimeout(updateDoc(doc(db, 'items', id), updates));
       return { id, ...updates };
     } catch (e) {
+      firestoreFailed = true;
       if (typeof window !== 'undefined') {
         console.warn('Firestore updateItem failed, using localStorage fallback:', e.message);
       }
@@ -98,15 +141,17 @@ export const updateItem = async (id, updates) => {
   if (idx === -1) throw new Error('Item not found');
   items[idx] = { ...items[idx], ...updates };
   ls.set(STORAGE_KEYS.ITEMS, items);
+  await pushToNpoint();
   return items[idx];
 };
 
 export const deleteItem = async (id) => {
-  if (isConfigured()) {
+  if (isConfigured() && !firestoreFailed) {
     try {
       await withTimeout(deleteDoc(doc(db, 'items', id)));
       return;
     } catch (e) {
+      firestoreFailed = true;
       if (typeof window !== 'undefined') {
         console.warn('Firestore deleteItem failed, using localStorage fallback:', e.message);
       }
@@ -114,6 +159,7 @@ export const deleteItem = async (id) => {
   }
   const items = ls.get(STORAGE_KEYS.ITEMS) || [];
   ls.set(STORAGE_KEYS.ITEMS, items.filter(i => i.id !== id));
+  await pushToNpoint();
 };
 
 // ─── BOOKINGS ─────────────────────────────────────────────────────────────────
@@ -145,17 +191,25 @@ const autoExpirePickups = (bookings, items) => {
 };
 
 export const getBookings = async () => {
-  if (isConfigured()) {
+  if (isConfigured() && !firestoreFailed) {
     try {
       const q = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'));
       const snap = await withTimeout(getDocs(q));
       const bookings = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       return bookings;
     } catch (e) {
+      firestoreFailed = true;
       if (typeof window !== 'undefined') {
         console.warn('Firestore getBookings failed, using localStorage fallback:', e.message);
       }
     }
+  }
+  // try npoint sync
+  const npointData = await pullFromNpoint();
+  if (npointData && npointData.bookings) {
+    ls.set(STORAGE_KEYS.BOOKINGS, npointData.bookings);
+    ls.set(STORAGE_KEYS.ITEMS, npointData.items || []);
+    ls.set(STORAGE_KEYS.CONFIG, npointData.config || {});
   }
   const bookings = ls.get(STORAGE_KEYS.BOOKINGS) || [];
   const items = ls.get(STORAGE_KEYS.ITEMS) || [];
@@ -164,18 +218,25 @@ export const getBookings = async () => {
 };
 
 export const getItems = async () => {
-  if (isConfigured()) {
+  if (isConfigured() && !firestoreFailed) {
     try {
       const q = query(collection(db, 'items'), orderBy('name'));
       const snap = await withTimeout(getDocs(q));
       return snap.docs.map(d => ({ id: d.id, ...d.data() }));
     } catch (e) {
+      firestoreFailed = true;
       if (typeof window !== 'undefined') {
         console.warn('Firestore getItems failed, using localStorage fallback:', e.message);
       }
     }
   }
-  // Also run auto-expiry when fetching items to keep stock consistent
+  // try npoint sync
+  const npointData = await pullFromNpoint();
+  if (npointData && npointData.items) {
+    ls.set(STORAGE_KEYS.ITEMS, npointData.items);
+    ls.set(STORAGE_KEYS.BOOKINGS, npointData.bookings || []);
+    ls.set(STORAGE_KEYS.CONFIG, npointData.config || {});
+  }
   const bookings = ls.get(STORAGE_KEYS.BOOKINGS) || [];
   const items = ls.get(STORAGE_KEYS.ITEMS) || [];
   autoExpirePickups(bookings, items);
@@ -192,7 +253,7 @@ export const addBooking = async (bookingData) => {
     notifiedDay2: false,
     notifiedDay3: false,
   };
-  if (isConfigured()) {
+  if (isConfigured() && !firestoreFailed) {
     try {
       const docRef = await withTimeout(addDoc(collection(db, 'bookings'), {
         ...data,
@@ -200,6 +261,7 @@ export const addBooking = async (bookingData) => {
       }));
       return { id: docRef.id, ...data };
     } catch (e) {
+      firestoreFailed = true;
       if (typeof window !== 'undefined') {
         console.warn('Firestore addBooking failed, using localStorage fallback:', e.message);
       }
@@ -213,6 +275,7 @@ export const addBooking = async (bookingData) => {
   };
   bookings.unshift(newBooking);
   ls.set(STORAGE_KEYS.BOOKINGS, bookings);
+  await pushToNpoint();
   return newBooking;
 };
 
@@ -220,7 +283,7 @@ export const approveBooking = async (bookingId) => {
   let booking, item, items, bookings;
   const firestoreOk = { value: true };
 
-  if (isConfigured()) {
+  if (isConfigured() && !firestoreFailed) {
     try {
       const snap = await withTimeout(getDocs(collection(db, 'bookings')));
       booking = snap.docs.map(d => ({ id: d.id, ...d.data() })).find(b => b.id === bookingId);
@@ -230,6 +293,7 @@ export const approveBooking = async (bookingId) => {
       items = itemSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       item = items.find(i => i.id === booking.itemId);
     } catch (e) {
+      firestoreFailed = true;
       if (typeof window !== 'undefined') {
         console.warn('Firestore approveBooking (read) failed, using localStorage fallback:', e.message);
       }
@@ -237,7 +301,7 @@ export const approveBooking = async (bookingId) => {
     }
   }
 
-  if (!firestoreOk.value || !isConfigured()) {
+  if (!firestoreOk.value || !isConfigured() || firestoreFailed) {
     bookings = ls.get(STORAGE_KEYS.BOOKINGS) || [];
     booking = bookings.find(b => b.id === bookingId);
 
@@ -250,12 +314,13 @@ export const approveBooking = async (bookingId) => {
 
   const now = firestoreOk.value && isConfigured() ? Timestamp.now() : new Date().toISOString();
 
-  if (isConfigured() && firestoreOk.value) {
+  if (isConfigured() && !firestoreFailed && firestoreOk.value) {
     try {
       await withTimeout(updateDoc(doc(db, 'bookings', bookingId), { status: 'approved', approvedAt: now }));
       await withTimeout(updateDoc(doc(db, 'items', booking.itemId), { availableQty: item.availableQty - booking.qty }));
       return true;
     } catch (e) {
+      firestoreFailed = true;
       if (typeof window !== 'undefined') {
         console.warn('Firestore approveBooking (write) failed, using localStorage fallback:', e.message);
       }
@@ -271,15 +336,17 @@ export const approveBooking = async (bookingId) => {
   items[iIdx].availableQty = item.availableQty - booking.qty;
   ls.set(STORAGE_KEYS.ITEMS, items);
 
+  await pushToNpoint();
   return true;
 };
 
 export const rejectBooking = async (bookingId) => {
-  if (isConfigured()) {
+  if (isConfigured() && !firestoreFailed) {
     try {
       await withTimeout(updateDoc(doc(db, 'bookings', bookingId), { status: 'rejected' }));
       return;
     } catch (e) {
+      firestoreFailed = true;
       if (typeof window !== 'undefined') {
         console.warn('Firestore rejectBooking failed, using localStorage fallback:', e.message);
       }
@@ -290,10 +357,11 @@ export const rejectBooking = async (bookingId) => {
   if (idx === -1) throw new Error('Booking not found');
   bookings[idx].status = 'rejected';
   ls.set(STORAGE_KEYS.BOOKINGS, bookings);
+  await pushToNpoint();
 };
 
 export const pickupBooking = async (bookingId) => {
-  if (isConfigured()) {
+  if (isConfigured() && !firestoreFailed) {
     try {
       await withTimeout(updateDoc(doc(db, 'bookings', bookingId), {
         status: 'picked_up',
@@ -301,6 +369,7 @@ export const pickupBooking = async (bookingId) => {
       }));
       return true;
     } catch (e) {
+      firestoreFailed = true;
       if (typeof window !== 'undefined') {
         console.warn('Firestore pickupBooking failed, using localStorage fallback:', e.message);
       }
@@ -312,11 +381,12 @@ export const pickupBooking = async (bookingId) => {
   bookings[idx].status = 'picked_up';
   bookings[idx].pickedUpAt = new Date().toISOString();
   ls.set(STORAGE_KEYS.BOOKINGS, bookings);
+  await pushToNpoint();
   return true;
 };
 
 export const returnBooking = async (bookingId) => {
-  if (isConfigured()) {
+  if (isConfigured() && !firestoreFailed) {
     try {
       const snap = await withTimeout(getDocs(collection(db, 'bookings')));
       const booking = snap.docs.map(d => ({ id: d.id, ...d.data() })).find(b => b.id === bookingId);
@@ -331,6 +401,7 @@ export const returnBooking = async (bookingId) => {
       }
       return true;
     } catch (e) {
+      firestoreFailed = true;
       if (typeof window !== 'undefined') {
         console.warn('Firestore returnBooking failed, using localStorage fallback:', e.message);
       }
@@ -351,6 +422,7 @@ export const returnBooking = async (bookingId) => {
     items[iIdx].availableQty = (items[iIdx].availableQty || 0) + booking.qty;
     ls.set(STORAGE_KEYS.ITEMS, items);
   }
+  await pushToNpoint();
   return true;
 };
 
@@ -359,6 +431,7 @@ const DEFAULT_CONFIG = {
   welcomeSubtitle: 'Mau ambil atau cek barang inventaris? Silakan cek ketersediaan barang atau lihat status booking kamu di bawah ini, ya.',
   cloudinaryCloudName: '',
   cloudinaryUploadPreset: '',
+  npointDocId: '',
 };
 
 export const getConfig = () => {
@@ -367,8 +440,9 @@ export const getConfig = () => {
   return { ...DEFAULT_CONFIG, ...saved };
 };
 
-export const saveConfig = (updates) => {
+export const saveConfig = async (updates) => {
   if (typeof window === 'undefined') return;
   const current = ls.get(STORAGE_KEYS.CONFIG) || {};
   ls.set(STORAGE_KEYS.CONFIG, { ...current, ...updates });
+  await pushToNpoint();
 };
