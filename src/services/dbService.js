@@ -431,7 +431,7 @@ const DEFAULT_CONFIG = {
   welcomeSubtitle: 'Mau ambil atau cek barang inventaris? Silakan cek ketersediaan barang atau lihat status booking kamu di bawah ini, ya.',
   cloudinaryCloudName: '',
   cloudinaryUploadPreset: '',
-  npointDocId: '7a1c2f35-4d17-454b-a0c8-f48d7e5e6bf3',
+  npointDocId: '019e666f-530a-7b9b-9b00-6944b33d1805',
 };
 
 export const getConfig = () => {
