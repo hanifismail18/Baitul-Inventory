@@ -23,9 +23,12 @@ export function AuthProvider({ children }) {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         setUser(transformUser(session.user));
+        if (event === 'SIGNED_IN') {
+          localStorage.setItem('google_consented', 'true');
+        }
       } else {
         setUser(null);
       }
@@ -53,10 +56,12 @@ export function AuthProvider({ children }) {
       if (!isSupabaseConfigured()) {
         return await demoLogin();
       }
+      const hasConsented = localStorage.getItem('google_consented') === 'true';
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: window.location.origin + '/login',
+          queryParams: hasConsented ? { prompt: 'none' } : undefined,
         },
       });
       if (error) throw error;
