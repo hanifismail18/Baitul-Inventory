@@ -3,9 +3,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Navbar from '@/components/Navbar';
 import ItemGridCard from '@/components/ItemGridCard';
+import ItemDetailModal from '@/components/ItemDetailModal';
+import { getItems, getBookings } from '@/services/dbService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
-import { getItems, getBookings } from '@/services/dbService';
 import Link from 'next/link';
 import Toast from '@/components/Toast';
 
@@ -17,6 +18,7 @@ export default function AvailablePage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ open: false, message: '', type: 'info' });
   const [search, setSearch] = useState('');
+  const [selectedItem, setSelectedItem] = useState(null);
 
   const showToast = useCallback((message, type = 'info') => {
     setToast({ open: true, message, type });
@@ -162,11 +164,22 @@ export default function AvailablePage() {
                   onRemoveFromCart={handleRemoveFromCart}
                   inCartQty={cartQtys[item.id] || 0}
                   isHabis={item.trulyAvailable <= 0}
+                  onDetail={setSelectedItem}
                 />
               ))}
             </div>
           )}
         </div>
+
+        {/* Item Detail Modal */}
+        <ItemDetailModal
+          open={!!selectedItem}
+          onClose={() => setSelectedItem(null)}
+          item={selectedItem}
+          onAddToCart={handleAddToCart}
+          onRemoveFromCart={handleRemoveFromCart}
+          inCartQty={selectedItem ? (cartQtys[selectedItem.id] || 0) : 0}
+        />
 
         {/* Cart indicator */}
         {totalItems > 0 && (

@@ -1,36 +1,23 @@
 'use client';
 
-import { useRef, useCallback } from 'react';
-
-export default function ItemGridCard({ item, onAddToCart, onRemoveFromCart, inCartQty = 0, isHabis }) {
-  const clickTimeout = useRef(null);
+export default function ItemGridCard({ item, onAddToCart, onRemoveFromCart, inCartQty = 0, isHabis, onDetail }) {
   const trulyAvailable = item.trulyAvailable ?? item.availableQty ?? 0;
   const outOfStock = isHabis || trulyAvailable <= 0;
 
-  const handleClick = useCallback(() => {
-    if (outOfStock) return;
-    if (clickTimeout.current) {
-      clearTimeout(clickTimeout.current);
-      clickTimeout.current = null;
-      const qty = Math.min(2, trulyAvailable);
-      onAddToCart?.({ ...item, trulyAvailable }, qty);
-    } else {
-      clickTimeout.current = setTimeout(() => {
-        clickTimeout.current = null;
-        onAddToCart?.({ ...item, trulyAvailable }, 1);
-      }, 280);
-    }
-  }, [item, trulyAvailable, onAddToCart, outOfStock]);
-
   return (
-    <div className={`rounded-2xl overflow-hidden active:scale-[0.97] transition-all duration-150 ${
-      outOfStock && inCartQty === 0
-        ? 'bg-dark-card/50 border border-dark-border opacity-60'
-        : 'bg-dark-card border border-dark-border hover:border-primary-500/30'
-    }`}>
-      <div className={`aspect-square relative overflow-hidden ${
-        outOfStock && inCartQty === 0 ? 'bg-dark-card-hover/50' : 'bg-dark-card-hover'
-      }`}>
+    <div
+      className={`rounded-2xl overflow-hidden active:scale-[0.97] transition-all duration-150 ${
+        outOfStock && inCartQty === 0
+          ? 'bg-dark-card/50 border border-dark-border opacity-60'
+          : 'bg-dark-card border border-dark-border hover:border-primary-500/30'
+      }`}
+    >
+      <div
+        className={`aspect-square relative overflow-hidden ${
+          outOfStock && inCartQty === 0 ? 'bg-dark-card-hover/50' : 'bg-dark-card-hover'
+        }`}
+        onClick={() => onDetail?.(item)}
+      >
         {item.imageUrl ? (
           <img
             src={item.imageUrl}
@@ -66,9 +53,12 @@ export default function ItemGridCard({ item, onAddToCart, onRemoveFromCart, inCa
       </div>
 
       <div className="p-3">
-        <h3 className={`font-medium text-sm leading-tight truncate ${
-          outOfStock && inCartQty === 0 ? 'text-[#64748B]' : 'text-[#E2E8F0]'
-        }`}>
+        <h3
+          className={`font-medium text-sm leading-tight truncate ${
+            outOfStock && inCartQty === 0 ? 'text-[#64748B]' : 'text-[#E2E8F0]'
+          }`}
+          onClick={() => onDetail?.(item)}
+        >
           {item.name}
         </h3>
         <div className="flex items-center justify-between mt-2">
@@ -80,7 +70,7 @@ export default function ItemGridCard({ item, onAddToCart, onRemoveFromCart, inCa
           <div className="flex items-center gap-1.5">
             {inCartQty > 0 && (
               <button
-                onClick={() => onRemoveFromCart?.(item.id)}
+                onClick={(e) => { e.stopPropagation(); onRemoveFromCart?.(item.id); }}
                 className="w-8 h-8 rounded-xl bg-red-500/15 text-red-400 flex items-center justify-center active:scale-90 transition-all duration-150 border border-red-500/20 hover:bg-red-500/25"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -90,7 +80,7 @@ export default function ItemGridCard({ item, onAddToCart, onRemoveFromCart, inCa
             )}
             {!outOfStock && (
               <button
-                onClick={handleClick}
+                onClick={(e) => { e.stopPropagation(); onAddToCart?.({ ...item, trulyAvailable }, 1); }}
                 className="w-8 h-8 rounded-xl bg-primary-500 text-white flex items-center justify-center active:scale-90 transition-all duration-150 shadow-[0_2px_8px_rgba(99,102,241,0.3)] hover:bg-primary-400"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

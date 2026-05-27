@@ -1,23 +1,34 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 export default function Modal({ open, onClose, title, children, full, footer }) {
+  const [closing, setClosing] = useState(false);
+  const prevOpen = useRef(open);
+
   useEffect(() => {
-    if (open) {
+    if (open && !prevOpen.current) {
       document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
+    } else if (!open && prevOpen.current) {
+      setClosing(true);
+      setTimeout(() => {
+        setClosing(false);
+        document.body.style.overflow = '';
+      }, 300);
     }
+    prevOpen.current = open;
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
-  if (!open) return null;
+  if (!open && !closing) return null;
 
   return (
     <div className="overlay-modal" style={{ zIndex: 60 }}>
-      <div className="backdrop animate-fade-in" onClick={onClose} />
-      <div className={`sheet ${full ? 'max-h-[90vh]' : 'max-h-[85vh]'}`}>
+      <div
+        className={`backdrop ${closing ? 'animate-fade-out' : 'animate-fade-in'}`}
+        onClick={closing ? undefined : onClose}
+      />
+      <div className={`sheet ${closing ? 'animate-sheet-down' : 'animate-sheet-up'} ${full ? 'max-h-[90vh]' : 'max-h-[85vh]'}`}>
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-8 h-1 rounded-full bg-dark-border-light" />

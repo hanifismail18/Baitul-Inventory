@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Navbar from '@/components/Navbar';
 import ItemGridCard from '@/components/ItemGridCard';
+import ItemDetailModal from '@/components/ItemDetailModal';
 import { getItems, getBookings } from '@/services/dbService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
@@ -16,6 +17,7 @@ export default function BookingPage() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ open: false, message: '', type: 'info' });
+  const [selectedItem, setSelectedItem] = useState(null);
 
   const showToast = useCallback((message, type = 'info') => {
     setToast({ open: true, message, type });
@@ -136,12 +138,23 @@ export default function BookingPage() {
                   onRemoveFromCart={handleRemoveFromCart}
                   inCartQty={cartQtys[item.id] || 0}
                   isHabis={item.trulyAvailable <= 0}
+                  onDetail={setSelectedItem}
                 />
               ))
             )}
           </div>
         </div>
       </div>
+
+      {/* Item Detail Modal */}
+      <ItemDetailModal
+        open={!!selectedItem}
+        onClose={() => setSelectedItem(null)}
+        item={selectedItem}
+        onAddToCart={handleAddToCart}
+        onRemoveFromCart={handleRemoveFromCart}
+        inCartQty={selectedItem ? (cartQtys[selectedItem.id] || 0) : 0}
+      />
 
       {/* Cart Bar */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md px-5 pb-6 pt-3 bg-gradient-to-t from-dark-surface via-dark-surface/95 to-transparent pointer-events-none">

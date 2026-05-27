@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import Navbar from '@/components/Navbar';
 import ItemGridCard from '@/components/ItemGridCard';
+import ItemDetailModal from '@/components/ItemDetailModal';
 import BookingCard from '@/components/BookingCard';
 import WhatsAppButton from '@/components/WhatsAppButton';
 import Modal from '@/components/Modal';
@@ -31,6 +32,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ open: false, message: '', type: 'info' });
   const [siteConfig, setSiteConfig] = useState({ welcomeHeading: '', welcomeSubtitle: '' });
+  const [selectedItem, setSelectedItem] = useState(null);
 
   // Redirect logged-in users away from / to /dashboard
   useEffect(() => {
@@ -264,6 +266,7 @@ export default function DashboardPage() {
                 onRemoveFromCart={handleRemoveFromCart}
                 inCartQty={cartQtys[item.id] || 0}
                 isHabis={item.trulyAvailable <= 0}
+                onDetail={setSelectedItem}
               />
             ))
           )}
@@ -319,6 +322,16 @@ export default function DashboardPage() {
           )}
         </div>
       </Modal>
+
+      {/* Item Detail Modal */}
+      <ItemDetailModal
+        open={!!selectedItem}
+        onClose={() => setSelectedItem(null)}
+        item={selectedItem}
+        onAddToCart={handleAddToCart}
+        onRemoveFromCart={handleRemoveFromCart}
+        inCartQty={selectedItem ? (cartQtys[selectedItem.id] || 0) : 0}
+      />
 
       {/* Credit */}
       <div className="px-5 pb-6 pt-2">

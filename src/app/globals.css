@@ -140,12 +140,30 @@
   }
 }
 
+@keyframes sheet-down {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;
   }
   to {
     opacity: 1;
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
   }
 }
 
@@ -192,8 +210,20 @@
   animation: sheet-up 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.animate-sheet-down {
+  animation: sheet-down 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 .animate-fade-in {
   animation: fade-in 0.25s ease-out;
+}
+
+.animate-fade-out {
+  animation: fade-out 0.2s ease-out;
+}
+
+.animate-fade-out-slow {
+  animation: fade-out 0.25s ease-out;
 }
 
 .animate-fade-in-up {
