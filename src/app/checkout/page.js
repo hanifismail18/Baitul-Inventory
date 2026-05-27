@@ -10,8 +10,7 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Toast from "@/components/Toast";
 import ErrorBoundary from "@/components/ErrorBoundary";
-
-const PHONE_NUMBER = "6285732263965";
+import { PHONE_NUMBER } from '@/config/constants';
 const PROFILE_KEY = "baitul_user_profile";
 
 function CheckoutPageContent() {

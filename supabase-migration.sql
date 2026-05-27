@@ -43,7 +43,12 @@ CREATE TABLE IF NOT EXISTS config (
 -- Insert default config row
 INSERT INTO config (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 
--- 4. ROW LEVEL SECURITY (buka akses untuk sementara)
+-- 4. ROW LEVEL SECURITY
+-- NOTE: Policies ini hanya untuk tahap development.
+-- Untuk production:
+--   - Ganti USING (true) dengan USING (auth.role() = 'authenticated')
+--   - Tambah policies terpisah untuk SELECT/INSERT/UPDATE/DELETE
+--   - Untuk bookings: filter by user_email = auth.email()
 ALTER TABLE items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE config ENABLE ROW LEVEL SECURITY;
@@ -75,7 +80,13 @@ CREATE POLICY "Allow all config" ON config FOR ALL USING (true);
 --    2. Public bucket (centang Public)
 --    3. Di tab Policies, tambah policy: "Allow all" ON item-images FOR ALL USING (true)
 --
--- D. Database > Replication > Enable Realtime:
+-- D. Database > Indexes (untuk performa query)
+CREATE INDEX IF NOT EXISTS idx_bookings_item_id ON bookings(item_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_user_email ON bookings(user_email);
+CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status);
+CREATE INDEX IF NOT EXISTS idx_bookings_created_at ON bookings(created_at DESC);
+
+-- E. Database > Replication > Enable Realtime:
 --    Pastikan tabel items, bookings, config sudah terdaftar di publikasi supabase_realtime
 ALTER PUBLICATION supabase_realtime ADD TABLE items;
 ALTER PUBLICATION supabase_realtime ADD TABLE bookings;

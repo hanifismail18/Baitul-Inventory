@@ -1,46 +1,16 @@
-import { sendEmail } from './emailService';
-
 /**
  * Notification Service — Trigger & Deadline Checker
  *
- * Semua fungsi ini siap diintegrasikan ke Firebase Cloud Functions,
- * EmailJS, atau layanan notifikasi lain. Saat ini dalam mode mock/log.
+ * Siap diintegrasikan dengan layanan notifikasi nantinya.
  */
 
 // ─── TRIGGER 1: User mengajukan booking ──────────────────────────────────────
 export const onBookingSubmitted = async (booking, user) => {
-  const subject = 'Pengajuan Booking Diterima';
-  const body = `
-    Halo ${user.displayName || user.email},
-    Pengajuan booking "${booking.itemName}" sebanyak ${booking.qty} unit telah kami terima.
-    Status: Pending — tunggu persetujuan admin.
-  `;
-
-  await sendEmail({ to: user.email, subject, body });
   return { trigger: 'booking_submitted', bookingId: booking.id };
 };
 
 // ─── TRIGGER 2: Admin approve / reject ────────────────────────────────────────
 export const onBookingStatusChanged = async (booking, userEmail, newStatus) => {
-  const subject =
-    newStatus === 'approved'
-      ? 'Pengajuan Booking Disetujui ✅'
-      : 'Pengajuan Booking Ditolak ❌';
-
-  const body =
-    newStatus === 'approved'
-      ? `
-        Halo,
-        Booking "${booking.itemName}" sebanyak ${booking.qty} unit telah DISETUJUI.
-        Ambil barang maksimal 3 hari dari sekarang.
-      `
-      : `
-        Halo,
-        Booking "${booking.itemName}" sebanyak ${booking.qty} unit telah DITOLAK.
-        Silakan hubungi admin untuk detail lebih lanjut.
-      `;
-
-  await sendEmail({ to: userEmail, subject, body });
   return { trigger: 'booking_status_changed', bookingId: booking.id, newStatus };
 };
 

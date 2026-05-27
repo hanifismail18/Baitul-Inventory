@@ -1,18 +1,19 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 
 const AdminContext = createContext(null);
 const STORAGE_KEY = 'baitul_admin';
 
 const ADMIN_CREDENTIALS = {
-  id: 'paduka',
-  password: 'password',
+  id: process.env.NEXT_PUBLIC_ADMIN_ID || 'paduka',
+  password: process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'password',
 };
 
 export function AdminProvider({ children }) {
   const [admin, setAdmin] = useState(null);
   const [adminReady, setAdminReady] = useState(false);
+  const attempts = useRef(0);
 
   useEffect(() => {
     try {
@@ -23,7 +24,10 @@ export function AdminProvider({ children }) {
   }, []);
 
   const loginAdmin = (id, password) => {
+    attempts.current++;
+    if (attempts.current > 10) return false;
     if (id === ADMIN_CREDENTIALS.id && password === ADMIN_CREDENTIALS.password) {
+      attempts.current = 0;
       const data = { id, name: 'Paduka Admin' };
       setAdmin(data);
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}

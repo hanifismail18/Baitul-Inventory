@@ -10,6 +10,7 @@ import {
   getItemById as supabaseGetItemById,
   getConfig as supabaseGetConfig,
   saveConfig as supabaseSaveConfig,
+  deleteImage as supabaseDeleteImage,
 } from './supabaseService';
 import { isSupabaseConfigured } from '@/config/supabase';
 import { initialItems } from '../data/initialItems';
@@ -141,6 +142,12 @@ export const updateItem = async (id, updates) => {
 export const deleteItem = async (id) => {
   if (isSupabaseConfigured()) {
     try {
+      const items = await supabaseGetItems();
+      const item = items.find(i => i.id === id);
+      if (item?.imageUrl) {
+        const path = extractStoragePath(item.imageUrl);
+        if (path) supabaseDeleteImage(path).catch(() => {});
+      }
       await supabaseDeleteItem(id);
       return;
     } catch (e) {
@@ -149,6 +156,15 @@ export const deleteItem = async (id) => {
   }
   const items = ls.get(STORAGE_KEYS.ITEMS) || [];
   ls.set(STORAGE_KEYS.ITEMS, items.filter(i => i.id !== id));
+};
+
+const extractStoragePath = (url) => {
+  if (!url || !url.includes('/storage/v1/object/public/')) return null;
+  const parts = url.split('/storage/v1/object/public/');
+  if (parts.length < 2) return null;
+  const afterBucket = parts[1].split('/');
+  afterBucket.shift(); // remove bucket name
+  return afterBucket.join('/');
 };
 
 // ─── BOOKINGS ──────────────────────────────────────────────────
@@ -214,8 +230,6 @@ export const addBooking = async (bookingData) => {
 };
 
 export const approveBooking = async (bookingId) => {
-  const firestoreOk = { value: true };
-
   if (isSupabaseConfigured()) {
     try {
       const bookings = await supabaseGetBookings();
@@ -230,15 +244,19 @@ export const approveBooking = async (bookingId) => {
         status: 'approved',
         approvedAt: new Date().toISOString(),
       });
-      const newQty = item.availableQty - booking.qty;
-      await supabaseUpdateItem(item.id, { availableQty: newQty });
+      try {
+        const newQty = item.availableQty - booking.qty;
+        await supabaseUpdateItem(item.id, { availableQty: newQty });
+      } catch (e) {
+        await supabaseUpdateBooking(bookingId, { status: 'pending', approvedAt: null });
+        throw new Error('Failed to update stock, booking reverted');
+      }
       return true;
     } catch (e) {
-      if (e.message === 'Booking not found' || e.message === 'Item not found' || e.message === 'Insufficient stock') {
+      if (e.message === 'Booking not found' || e.message === 'Item not found' || e.message === 'Insufficient stock' || e.message === 'Failed to update stock, booking reverted') {
         throw e;
       }
       console.warn('supabase approveBooking failed, using localStorage:', e.message);
-      firestoreOk.value = false;
     }
   }
 

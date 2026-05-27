@@ -1,6 +1,8 @@
 'use client';
 
-export default function ItemGridCard({ item, onAddToCart, onRemoveFromCart, inCartQty = 0, isHabis, onDetail }) {
+import { memo } from 'react';
+
+function ItemGridCard({ item, onAddToCart, onRemoveFromCart, inCartQty = 0, isHabis, onDetail }) {
   const trulyAvailable = item.trulyAvailable ?? item.availableQty ?? 0;
   const outOfStock = isHabis || trulyAvailable <= 0;
 
@@ -101,3 +103,5 @@ export default function ItemGridCard({ item, onAddToCart, onRemoveFromCart, inCa
     </div>
   );
 }
+
+export default memo(ItemGridCard);

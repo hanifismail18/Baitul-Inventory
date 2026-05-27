@@ -16,23 +16,34 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(transformUser(session.user));
-      }
-      setLoading(false);
-    });
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        if (session?.user) {
+          setUser(transformUser(session.user));
+        }
+      })
+      .catch((err) => {
+        console.error('getSession error:', err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        setUser(transformUser(session.user));
-        if (event === 'SIGNED_IN') {
-          localStorage.setItem('google_consented', 'true');
+      try {
+        if (session?.user) {
+          setUser(transformUser(session.user));
+          if (event === 'SIGNED_IN') {
+            localStorage.setItem('google_consented', 'true');
+          }
+        } else {
+          setUser(null);
         }
-      } else {
-        setUser(null);
+      } catch (err) {
+        console.error('onAuthStateChange error:', err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();

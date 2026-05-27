@@ -70,7 +70,9 @@ export const updateItem = async (id, updates) => {
 
 export const deleteItem = async (id) => {
   try {
-    const { error } = await supabase.from('items').delete().eq('id', id)
+    const { error } = await withTimeout(
+      supabase.from('items').delete().eq('id', id)
+    )
     if (error) throw error
   } catch (e) {
     console.warn('supabase: deleteItem failed', e.message)
@@ -172,7 +174,9 @@ export const getItemById = async (id) => {
 
 export const getConfig = async () => {
   try {
-    const { data, error } = await supabase.from('config').select('*').eq('id', 1).single()
+    const { data, error } = await withTimeout(
+      supabase.from('config').select('*').eq('id', 1).single()
+    )
     if (error) throw error
     return {
       welcomeHeading: data.welcome_heading || 'Halo!',
@@ -186,10 +190,12 @@ export const getConfig = async () => {
 
 export const saveConfig = async (updates) => {
   try {
-    const { error } = await supabase.from('config').update({
-      ...toSnake(updates),
-      updated_at: new Date().toISOString(),
-    }).eq('id', 1)
+    const { error } = await withTimeout(
+      supabase.from('config').update({
+        ...toSnake(updates),
+        updated_at: new Date().toISOString(),
+      }).eq('id', 1)
+    )
     if (error) throw error
     return true
   } catch (e) {
@@ -200,14 +206,22 @@ export const saveConfig = async (updates) => {
 
 // ─── STORAGE ────────────────────────────────────────────────────
 
+const withTimeoutUpload = (promise, ms = 30000) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`Upload timeout after ${ms}ms`)), ms)),
+  ])
+
 export const uploadImage = async (file, fileName) => {
   try {
-    const { data, error } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .upload(fileName, file, {
-        cacheControl: '3600',
-        upsert: true,
-      })
+    const { data, error } = await withTimeoutUpload(
+      supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: true,
+        })
+    )
     if (error) throw error
     const { data: urlData } = supabase.storage
       .from(STORAGE_BUCKET)
@@ -221,9 +235,11 @@ export const uploadImage = async (file, fileName) => {
 
 export const deleteImage = async (path) => {
   try {
-    const { error } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .remove([path])
+    const { error } = await withTimeout(
+      supabase.storage
+        .from(STORAGE_BUCKET)
+        .remove([path])
+    )
     if (error) throw error
     return true
   } catch (e) {
