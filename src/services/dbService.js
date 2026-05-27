@@ -1,8 +1,15 @@
-import { db, isConfigured } from './firebase';
 import {
-  collection, getDocs, getDoc, addDoc, updateDoc, deleteDoc, doc,
-  query, orderBy, Timestamp,
-} from 'firebase/firestore';
+  getItems as supabaseGetItems,
+  addItem as supabaseAddItem,
+  updateItem as supabaseUpdateItem,
+  seedItems as supabaseSeedItems,
+  getBookings as supabaseGetBookings,
+  addBooking as supabaseAddBooking,
+  updateBooking as supabaseUpdateBooking,
+  getItemById as supabaseGetItemById,
+  saveConfig as supabaseSaveConfig,
+} from './supabaseService';
+import { supabase, isSupabaseConfigured } from '@/config/supabase';
 import { initialItems } from '../data/initialItems';
 
 const STORAGE_KEYS = {
@@ -10,10 +17,6 @@ const STORAGE_KEYS = {
   BOOKINGS: 'baitul_bookings',
   CONFIG: 'baitul_config',
 };
-
-const SYNC_API = '/api/sync';
-
-let firestoreFailed = false;
 
 const ls = {
   get(key) {
@@ -29,7 +32,27 @@ const ls = {
   },
 };
 
-const seedInitialData = () => {
+const seedInitialData = async () => {
+  if (isSupabaseConfigured()) {
+    try {
+      const result = await supabaseSeedItems(initialItems.map((item, idx) => ({
+        ...item,
+        id: `item_${idx}`,
+        createdAt: new Date().toISOString(),
+      })));
+      if (result.seeded) {
+        console.log(`supabase: seeded ${result.count} items`);
+      }
+    } catch (e) {
+      console.warn('supabase: seed failed, using localStorage fallback', e.message);
+      seedLocalFallback();
+    }
+  } else {
+    seedLocalFallback();
+  }
+};
+
+const seedLocalFallback = () => {
   const items = ls.get(STORAGE_KEYS.ITEMS);
   if (!items || items.length === 0) {
     ls.set(STORAGE_KEYS.ITEMS, initialItems.map((item, idx) => ({
@@ -47,122 +70,7 @@ if (typeof window !== 'undefined') {
   seedInitialData();
 }
 
-const withTimeout = (promise, ms = 4000) =>
-  Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(`Firestore timeout after ${ms}ms`)), ms)),
-  ]);
-
-const getSyncDocId = () => {
-  const config = ls.get(STORAGE_KEYS.CONFIG) || {};
-  return config.npointDocId || DEFAULT_CONFIG.npointDocId;
-};
-
-const pushToSync = async () => {
-  const docId = getSyncDocId();
-  if (!docId) return;
-  const items = ls.get(STORAGE_KEYS.ITEMS) || [];
-  const bookings = ls.get(STORAGE_KEYS.BOOKINGS) || [];
-  // don't push empty data (first-visit phone would wipe the sync doc)
-  if (items.length === 0 && bookings.length === 0) return;
-  try {
-    await fetch(SYNC_API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items, bookings, config: ls.get(STORAGE_KEYS.CONFIG) || {} }),
-    });
-  } catch (e) {
-    console.warn('sync push failed:', e.message);
-  }
-};
-
-const pullFromSync = async () => {
-  const docId = getSyncDocId();
-  if (!docId) return null;
-  try {
-    const res = await fetch(SYNC_API);
-    if (!res.ok) throw new Error(`sync: ${res.status}`);
-    return await res.json();
-  } catch (e) {
-    console.warn('sync pull failed:', e.message);
-    return null;
-  }
-};
-
-// ─── ITEMS ────────────────────────────────────────────────────────────────────
-
-export const addItem = async (name, totalQty, imageUrl = null) => {
-  const itemData = {
-    name,
-    totalQty: Number(totalQty),
-    availableQty: Number(totalQty),
-    imageUrl,
-  };
-  if (isConfigured() && !firestoreFailed) {
-    try {
-      const docRef = await withTimeout(addDoc(collection(db, 'items'), {
-        ...itemData,
-        createdAt: Timestamp.now(),
-      }));
-      return { id: docRef.id, ...itemData };
-    } catch (e) {
-      firestoreFailed = true;
-      if (typeof window !== 'undefined') {
-        console.warn('Firestore addItem failed, using localStorage fallback:', e.message);
-      }
-    }
-  }
-  const items = ls.get(STORAGE_KEYS.ITEMS) || [];
-  const newItem = {
-    ...itemData,
-    id: `item_${Date.now()}`,
-    createdAt: new Date().toISOString(),
-  };
-  items.push(newItem);
-  ls.set(STORAGE_KEYS.ITEMS, items);
-  await pushToSync();
-  return newItem;
-};
-
-export const updateItem = async (id, updates) => {
-  if (isConfigured() && !firestoreFailed) {
-    try {
-      await withTimeout(updateDoc(doc(db, 'items', id), updates));
-      return { id, ...updates };
-    } catch (e) {
-      firestoreFailed = true;
-      if (typeof window !== 'undefined') {
-        console.warn('Firestore updateItem failed, using localStorage fallback:', e.message);
-      }
-    }
-  }
-  const items = ls.get(STORAGE_KEYS.ITEMS) || [];
-  const idx = items.findIndex(i => i.id === id);
-  if (idx === -1) throw new Error('Item not found');
-  items[idx] = { ...items[idx], ...updates };
-  ls.set(STORAGE_KEYS.ITEMS, items);
-  await pushToSync();
-  return items[idx];
-};
-
-export const deleteItem = async (id) => {
-  if (isConfigured() && !firestoreFailed) {
-    try {
-      await withTimeout(deleteDoc(doc(db, 'items', id)));
-      return;
-    } catch (e) {
-      firestoreFailed = true;
-      if (typeof window !== 'undefined') {
-        console.warn('Firestore deleteItem failed, using localStorage fallback:', e.message);
-      }
-    }
-  }
-  const items = ls.get(STORAGE_KEYS.ITEMS) || [];
-  ls.set(STORAGE_KEYS.ITEMS, items.filter(i => i.id !== id));
-  await pushToSync();
-};
-
-// ─── BOOKINGS ─────────────────────────────────────────────────────────────────
+// ─── THREE DAY EXPIRY ───────────────────────────────────────────
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -190,27 +98,69 @@ const autoExpirePickups = (bookings, items) => {
   return { bookings, items };
 };
 
-export const getBookings = async () => {
-  if (isConfigured() && !firestoreFailed) {
+// ─── ITEMS ──────────────────────────────────────────────────────
+
+export const addItem = async (name, totalQty, imageUrl = null) => {
+  const itemData = { name, totalQty: Number(totalQty), availableQty: Number(totalQty), imageUrl };
+  if (isSupabaseConfigured()) {
     try {
-      const q = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'));
-      const snap = await withTimeout(getDocs(q));
-      const bookings = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      return bookings;
+      return await supabaseAddItem(name, totalQty, imageUrl);
     } catch (e) {
-      firestoreFailed = true;
-      if (typeof window !== 'undefined') {
-        console.warn('Firestore getBookings failed, using localStorage fallback:', e.message);
-      }
+      console.warn('supabase addItem failed, using localStorage:', e.message);
     }
   }
-  // push local first, then pull from sync (sync is authoritative)
-  await pushToSync();
-  const npointData = await pullFromSync();
-  if (npointData && npointData.bookings) {
-    ls.set(STORAGE_KEYS.BOOKINGS, npointData.bookings);
-    ls.set(STORAGE_KEYS.ITEMS, npointData.items || []);
-    ls.set(STORAGE_KEYS.CONFIG, npointData.config || {});
+  const items = ls.get(STORAGE_KEYS.ITEMS) || [];
+  const newItem = {
+    ...itemData,
+    id: `item_${Date.now()}`,
+    createdAt: new Date().toISOString(),
+  };
+  items.push(newItem);
+  ls.set(STORAGE_KEYS.ITEMS, items);
+  return newItem;
+};
+
+export const updateItem = async (id, updates) => {
+  if (isSupabaseConfigured()) {
+    try {
+      return await supabaseUpdateItem(id, updates);
+    } catch (e) {
+      console.warn('supabase updateItem failed, using localStorage:', e.message);
+    }
+  }
+  const items = ls.get(STORAGE_KEYS.ITEMS) || [];
+  const idx = items.findIndex(i => i.id === id);
+  if (idx === -1) throw new Error('Item not found');
+  items[idx] = { ...items[idx], ...updates };
+  ls.set(STORAGE_KEYS.ITEMS, items);
+  return items[idx];
+};
+
+export const deleteItem = async (id) => {
+  if (isSupabaseConfigured()) {
+    try {
+      await supabase.from('items').delete().eq('id', id);
+      return;
+    } catch (e) {
+      console.warn('supabase deleteItem failed, using localStorage:', e.message);
+    }
+  }
+  const items = ls.get(STORAGE_KEYS.ITEMS) || [];
+  ls.set(STORAGE_KEYS.ITEMS, items.filter(i => i.id !== id));
+};
+
+// ─── BOOKINGS ──────────────────────────────────────────────────
+
+export const getBookings = async () => {
+  if (isSupabaseConfigured()) {
+    try {
+      const supabaseData = await supabaseGetBookings();
+      ls.set(STORAGE_KEYS.BOOKINGS, supabaseData);
+      ls.set(STORAGE_KEYS.ITEMS, await supabaseGetItems());
+      return supabaseData;
+    } catch (e) {
+      console.warn('supabase getBookings failed, using localStorage:', e.message);
+    }
   }
   const bookings = ls.get(STORAGE_KEYS.BOOKINGS) || [];
   const items = ls.get(STORAGE_KEYS.ITEMS) || [];
@@ -219,139 +169,102 @@ export const getBookings = async () => {
 };
 
 export const getItems = async () => {
-  if (isConfigured() && !firestoreFailed) {
+  if (isSupabaseConfigured()) {
     try {
-      const q = query(collection(db, 'items'), orderBy('name'));
-      const snap = await withTimeout(getDocs(q));
-      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const data = await supabaseGetItems();
+      ls.set(STORAGE_KEYS.ITEMS, data);
+      return data;
     } catch (e) {
-      firestoreFailed = true;
-      if (typeof window !== 'undefined') {
-        console.warn('Firestore getItems failed, using localStorage fallback:', e.message);
-      }
+      console.warn('supabase getItems failed, using localStorage:', e.message);
     }
   }
-  // push local first, then pull from sync (sync is authoritative)
-  await pushToSync();
-  const npointData = await pullFromSync();
-  if (npointData && npointData.items) {
-    ls.set(STORAGE_KEYS.ITEMS, npointData.items);
-    ls.set(STORAGE_KEYS.BOOKINGS, npointData.bookings || []);
-    ls.set(STORAGE_KEYS.CONFIG, npointData.config || {});
-  }
-  const bookings = ls.get(STORAGE_KEYS.BOOKINGS) || [];
   const items = ls.get(STORAGE_KEYS.ITEMS) || [];
+  const bookings = ls.get(STORAGE_KEYS.BOOKINGS) || [];
   autoExpirePickups(bookings, items);
   return items;
 };
 
 export const addBooking = async (bookingData) => {
-  const data = {
-    ...bookingData,
-    status: 'pending',
-    approvedAt: null,
-    pickedUpAt: null,
-    notifiedDay1: false,
-    notifiedDay2: false,
-    notifiedDay3: false,
-  };
-  if (isConfigured() && !firestoreFailed) {
+  if (isSupabaseConfigured()) {
     try {
-      const docRef = await withTimeout(addDoc(collection(db, 'bookings'), {
-        ...data,
-        createdAt: Timestamp.now(),
-      }));
-      return { id: docRef.id, ...data };
+      return await supabaseAddBooking(bookingData);
     } catch (e) {
-      firestoreFailed = true;
-      if (typeof window !== 'undefined') {
-        console.warn('Firestore addBooking failed, using localStorage fallback:', e.message);
-      }
+      console.warn('supabase addBooking failed, using localStorage:', e.message);
     }
   }
   const bookings = ls.get(STORAGE_KEYS.BOOKINGS) || [];
   const newBooking = {
-    ...data,
+    ...bookingData,
     id: `booking_${Date.now()}`,
+    status: 'pending',
+    approvedAt: null,
+    pickedUpAt: null,
+    returnedAt: null,
+    expiredAt: null,
+    notifiedDay1: false,
+    notifiedDay2: false,
+    notifiedDay3: false,
     createdAt: new Date().toISOString(),
   };
   bookings.unshift(newBooking);
   ls.set(STORAGE_KEYS.BOOKINGS, bookings);
-  await pushToSync();
   return newBooking;
 };
 
 export const approveBooking = async (bookingId) => {
-  let booking, item, items, bookings;
   const firestoreOk = { value: true };
 
-  if (isConfigured() && !firestoreFailed) {
+  if (isSupabaseConfigured()) {
     try {
-      const snap = await withTimeout(getDocs(collection(db, 'bookings')));
-      booking = snap.docs.map(d => ({ id: d.id, ...d.data() })).find(b => b.id === bookingId);
+      const bookings = await supabaseGetBookings();
+      const booking = bookings.find(b => b.id === bookingId);
       if (!booking) throw new Error('Booking not found');
+      const items = await supabaseGetItems();
+      const item = items.find(i => i.id === booking.itemId);
+      if (!item) throw new Error('Item not found');
+      if (item.availableQty < booking.qty) throw new Error('Insufficient stock');
 
-      const itemSnap = await withTimeout(getDocs(collection(db, 'items')));
-      items = itemSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      item = items.find(i => i.id === booking.itemId);
+      await supabaseUpdateBooking(bookingId, {
+        status: 'approved',
+        approvedAt: new Date().toISOString(),
+      });
+      const newQty = item.availableQty - booking.qty;
+      await supabaseUpdateItem(item.id, { availableQty: newQty });
+      return true;
     } catch (e) {
-      firestoreFailed = true;
-      if (typeof window !== 'undefined') {
-        console.warn('Firestore approveBooking (read) failed, using localStorage fallback:', e.message);
+      if (e.message === 'Booking not found' || e.message === 'Item not found' || e.message === 'Insufficient stock') {
+        throw e;
       }
+      console.warn('supabase approveBooking failed, using localStorage:', e.message);
       firestoreOk.value = false;
     }
   }
 
-  if (!firestoreOk.value || !isConfigured() || firestoreFailed) {
-    bookings = ls.get(STORAGE_KEYS.BOOKINGS) || [];
-    booking = bookings.find(b => b.id === bookingId);
-
-    items = ls.get(STORAGE_KEYS.ITEMS) || [];
-    item = items.find(i => i.id === booking.itemId);
-  }
-
+  const bookings = ls.get(STORAGE_KEYS.BOOKINGS) || [];
+  const booking = bookings.find(b => b.id === bookingId);
+  const items = ls.get(STORAGE_KEYS.ITEMS) || [];
+  const item = items.find(i => i.id === booking.itemId);
   if (!item) throw new Error('Item not found');
   if (item.availableQty < booking.qty) throw new Error('Insufficient stock');
 
-  const now = firestoreOk.value && isConfigured() ? Timestamp.now() : new Date().toISOString();
-
-  if (isConfigured() && !firestoreFailed && firestoreOk.value) {
-    try {
-      await withTimeout(updateDoc(doc(db, 'bookings', bookingId), { status: 'approved', approvedAt: now }));
-      await withTimeout(updateDoc(doc(db, 'items', booking.itemId), { availableQty: item.availableQty - booking.qty }));
-      return true;
-    } catch (e) {
-      firestoreFailed = true;
-      if (typeof window !== 'undefined') {
-        console.warn('Firestore approveBooking (write) failed, using localStorage fallback:', e.message);
-      }
-    }
-  }
-
   const bIdx = bookings.findIndex(b => b.id === bookingId);
   bookings[bIdx].status = 'approved';
-  bookings[bIdx].approvedAt = now;
+  bookings[bIdx].approvedAt = new Date().toISOString();
   ls.set(STORAGE_KEYS.BOOKINGS, bookings);
 
   const iIdx = items.findIndex(i => i.id === booking.itemId);
   items[iIdx].availableQty = item.availableQty - booking.qty;
   ls.set(STORAGE_KEYS.ITEMS, items);
-
-  await pushToSync();
   return true;
 };
 
 export const rejectBooking = async (bookingId) => {
-  if (isConfigured() && !firestoreFailed) {
+  if (isSupabaseConfigured()) {
     try {
-      await withTimeout(updateDoc(doc(db, 'bookings', bookingId), { status: 'rejected' }));
+      await supabaseUpdateBooking(bookingId, { status: 'rejected' });
       return;
     } catch (e) {
-      firestoreFailed = true;
-      if (typeof window !== 'undefined') {
-        console.warn('Firestore rejectBooking failed, using localStorage fallback:', e.message);
-      }
+      console.warn('supabase rejectBooking failed, using localStorage:', e.message);
     }
   }
   const bookings = ls.get(STORAGE_KEYS.BOOKINGS) || [];
@@ -359,22 +272,18 @@ export const rejectBooking = async (bookingId) => {
   if (idx === -1) throw new Error('Booking not found');
   bookings[idx].status = 'rejected';
   ls.set(STORAGE_KEYS.BOOKINGS, bookings);
-  await pushToSync();
 };
 
 export const pickupBooking = async (bookingId) => {
-  if (isConfigured() && !firestoreFailed) {
+  if (isSupabaseConfigured()) {
     try {
-      await withTimeout(updateDoc(doc(db, 'bookings', bookingId), {
+      await supabaseUpdateBooking(bookingId, {
         status: 'picked_up',
-        pickedUpAt: Timestamp.now(),
-      }));
+        pickedUpAt: new Date().toISOString(),
+      });
       return true;
     } catch (e) {
-      firestoreFailed = true;
-      if (typeof window !== 'undefined') {
-        console.warn('Firestore pickupBooking failed, using localStorage fallback:', e.message);
-      }
+      console.warn('supabase pickupBooking failed, using localStorage:', e.message);
     }
   }
   const bookings = ls.get(STORAGE_KEYS.BOOKINGS) || [];
@@ -383,30 +292,32 @@ export const pickupBooking = async (bookingId) => {
   bookings[idx].status = 'picked_up';
   bookings[idx].pickedUpAt = new Date().toISOString();
   ls.set(STORAGE_KEYS.BOOKINGS, bookings);
-  await pushToSync();
   return true;
 };
 
 export const returnBooking = async (bookingId) => {
-  if (isConfigured() && !firestoreFailed) {
+  if (isSupabaseConfigured()) {
     try {
-      const snap = await withTimeout(getDocs(collection(db, 'bookings')));
-      const booking = snap.docs.map(d => ({ id: d.id, ...d.data() })).find(b => b.id === bookingId);
+      const bookings = await supabaseGetBookings();
+      const booking = bookings.find(b => b.id === bookingId);
       if (!booking) throw new Error('Booking not found');
       if (booking.status !== 'picked_up') throw new Error('Only picked-up bookings can be returned');
 
-      await withTimeout(updateDoc(doc(db, 'bookings', bookingId), { status: 'returned', returnedAt: Timestamp.now() }));
-      const itemSnap = await withTimeout(getDoc(doc(db, 'items', booking.itemId)));
-      if (itemSnap.exists()) {
-        const item = itemSnap.data();
-        await withTimeout(updateDoc(doc(db, 'items', booking.itemId), { availableQty: (item.availableQty || 0) + booking.qty }));
+      await supabaseUpdateBooking(bookingId, {
+        status: 'returned',
+        returnedAt: new Date().toISOString(),
+      });
+      const item = await supabaseGetItemById(booking.itemId);
+      if (item) {
+        const newQty = (item.availableQty || 0) + booking.qty;
+        await supabaseUpdateItem(booking.itemId, { availableQty: newQty });
       }
       return true;
     } catch (e) {
-      firestoreFailed = true;
-      if (typeof window !== 'undefined') {
-        console.warn('Firestore returnBooking failed, using localStorage fallback:', e.message);
+      if (e.message === 'Booking not found' || e.message === 'Only picked-up bookings can be returned') {
+        throw e;
       }
+      console.warn('supabase returnBooking failed, using localStorage:', e.message);
     }
   }
   const bookings = ls.get(STORAGE_KEYS.BOOKINGS) || [];
@@ -424,16 +335,14 @@ export const returnBooking = async (bookingId) => {
     items[iIdx].availableQty = (items[iIdx].availableQty || 0) + booking.qty;
     ls.set(STORAGE_KEYS.ITEMS, items);
   }
-  await pushToSync();
   return true;
 };
+
+// ─── CONFIG ─────────────────────────────────────────────────────
 
 const DEFAULT_CONFIG = {
   welcomeHeading: 'Halo!',
   welcomeSubtitle: 'Mau ambil atau cek barang inventaris? Silakan cek ketersediaan barang atau lihat status booking kamu di bawah ini, ya.',
-  cloudinaryCloudName: '',
-  cloudinaryUploadPreset: '',
-  npointDocId: '019e666f-530a-7b9b-9b00-6944b33d1805',
 };
 
 export const getConfig = () => {
@@ -443,8 +352,14 @@ export const getConfig = () => {
 };
 
 export const saveConfig = async (updates) => {
+  if (isSupabaseConfigured()) {
+    try {
+      await supabaseSaveConfig(updates);
+    } catch (e) {
+      console.warn('supabase saveConfig failed, using localStorage:', e.message);
+    }
+  }
   if (typeof window === 'undefined') return;
   const current = ls.get(STORAGE_KEYS.CONFIG) || {};
   ls.set(STORAGE_KEYS.CONFIG, { ...current, ...updates });
-  await pushToSync();
 };

@@ -7,7 +7,7 @@ import {
   approveBooking, rejectBooking, returnBooking,
   getConfig, saveConfig,
 } from '@/services/dbService';
-import { captureFromCamera, pickFromGallery, uploadToCloudinary } from '@/services/imageUploadService';
+import { captureFromCamera, pickFromGallery, uploadToSupabaseStorage } from '@/services/imageUploadService';
 import { onBookingStatusChanged } from '@/services/notificationService';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -44,6 +44,7 @@ export default function AdminPage() {
   const [batchSaving, setBatchSaving] = useState(false);
 
   const [config, setConfig] = useState({ welcomeHeading: '', welcomeSubtitle: '' });
+  const [configSupabaseSynced, setConfigSupabaseSynced] = useState(false);
   const [configSaving, setConfigSaving] = useState(false);
 
   const [actionBookingId, setActionBookingId] = useState(null);
@@ -122,40 +123,16 @@ export default function AdminPage() {
       await saveConfig({
         welcomeHeading: config.welcomeHeading.trim(),
         welcomeSubtitle: config.welcomeSubtitle.trim(),
-        cloudinaryCloudName: config.cloudinaryCloudName.trim(),
-        cloudinaryUploadPreset: config.cloudinaryUploadPreset.trim(),
-        npointDocId: config.npointDocId.trim(),
       });
       showToast('Pengaturan berhasil disimpan!', 'success');
     } catch { showToast('Gagal menyimpan pengaturan', 'error'); }
     finally { setConfigSaving(false); }
   };
 
-  const handleCreateNpointDoc = async () => {
-    try {
-      const res = await fetch('https://jsonblob.com/api/jsonBlob', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: [],
-          bookings: [],
-          config: {},
-        }),
-      });
-      if (!res.ok) throw new Error(`jsonblob: ${res.status}`);
-      const id = res.headers.get('x-jsonblob-id') || res.headers.get('location')?.split('/').pop();
-      if (!id) throw new Error('Gagal mendapatkan ID');
-      setConfig(p => ({ ...p, npointDocId: id }));
-      showToast('Dokumen baru berhasil dibuat! Jangan lupa simpan.', 'success');
-    } catch {
-      showToast('Gagal membuat dokumen. Coba lagi.', 'error');
-    }
-  };
-
   const handleImagePick = async (capture) => {
     try {
-      const dataUrl = capture ? await captureFromCamera() : await pickFromGallery();
-      setFormImage(dataUrl);
+      const result = capture ? await captureFromCamera() : await pickFromGallery();
+      setFormImage(result.dataUrl);
     } catch (err) {
       showToast(err.message, 'warning');
     }
@@ -169,7 +146,7 @@ export default function AdminPage() {
     setFormSubmitting(true);
     try {
       const imageUrl = formImage
-        ? await uploadToCloudinary(formImage, config.cloudinaryCloudName, config.cloudinaryUploadPreset)
+        ? await uploadToSupabaseStorage(formImage)
         : null;
       await addItem(formName.trim(), Number(formQty), imageUrl);
       showToast('Barang berhasil ditambahkan', 'success');
@@ -192,7 +169,7 @@ export default function AdminPage() {
         totalQty: Number(formQty),
         availableQty: editItem.availableQty + diff,
       };
-      if (formImage) updates.imageUrl = await uploadToCloudinary(formImage, config.cloudinaryCloudName, config.cloudinaryUploadPreset);
+      if (formImage) updates.imageUrl = await uploadToSupabaseStorage(formImage);
       await updateItem(editItem.id, updates);
       showToast('Barang berhasil diperbarui', 'success');
       setEditModal(false); setEditItem(null); setFormName(''); setFormQty(''); setFormImage(null);
@@ -265,8 +242,8 @@ export default function AdminPage() {
 
   const handleItemImageUpdate = async (item) => {
     try {
-      const dataUrl = await pickFromGallery();
-      const url = await uploadToCloudinary(dataUrl, config.cloudinaryCloudName, config.cloudinaryUploadPreset);
+      const result = await pickFromGallery();
+      const url = await uploadToSupabaseStorage(result.dataUrl);
       await updateItem(item.id, { imageUrl: url });
       showToast('Gambar berhasil diperbarui', 'success');
       loadData();
@@ -485,48 +462,8 @@ export default function AdminPage() {
             </div>
 
             <div className="card-dark">
-              <h3 className="font-semibold text-sm text-[#E2E8F0] mb-1">Cloudinary</h3>
-              <p className="text-xs text-[#64748B] mb-3">Biar gambar bisa diakses dari HP. Daftar gratis di <a href="https://cloudinary.com" target="_blank" rel="noopener noreferrer" className="text-primary-400 underline">cloudinary.com</a>, masukin Cloud Name & Upload Preset (unsigned) di sini.</p>
-              <div className="space-y-3.5">
-                <div>
-                  <label className="text-xs font-semibold text-[#94A3B8] mb-1.5 block">Cloud Name</label>
-                  <input
-                    type="text"
-                    value={config.cloudinaryCloudName}
-                    onChange={e => setConfig(p => ({ ...p, cloudinaryCloudName: e.target.value }))}
-                    className="input-field"
-                    placeholder="my-project"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-[#94A3B8] mb-1.5 block">Upload Preset (unsigned)</label>
-                  <input
-                    type="text"
-                    value={config.cloudinaryUploadPreset}
-                    onChange={e => setConfig(p => ({ ...p, cloudinaryUploadPreset: e.target.value }))}
-                    className="input-field"
-                    placeholder="my_unsigned_preset"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="card-dark">
-              <h3 className="font-semibold text-sm text-[#E2E8F0] mb-1">Sinkronisasi Data</h3>
-              <p className="text-xs text-[#64748B] mb-3">Biar data barang, booking, dan gambar nyambung antara laptop & HP. Dokumen ID sudah otomatis, tinggal simpan pengaturan aja.</p>
-              <div className="space-y-3.5">
-                <div>
-                  <label className="text-xs font-semibold text-[#94A3B8] mb-1.5 block">Dokumen ID (jsonblob.com)</label>
-                  <input
-                    type="text"
-                    value={config.npointDocId}
-                    onChange={e => setConfig(p => ({ ...p, npointDocId: e.target.value }))}
-                    className="input-field"
-                    placeholder="ID dokumen"
-                  />
-                  <p className="text-[10px] text-[#64748B] mt-1">Default udah ada, semua device pake ID ini. Ganti cuma kalo mau reset data.</p>
-                </div>
-              </div>
+              <h3 className="font-semibold text-sm text-[#E2E8F0] mb-1">Penyimpanan Gambar</h3>
+              <p className="text-xs text-[#64748B] mb-3">Gambar otomatis disimpan di Supabase Storage (bucket: <span className="text-primary-400">item-images</span>). Semua device bisa akses gambar yang sama.</p>
             </div>
 
             <button

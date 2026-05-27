@@ -1,8 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { auth, googleProvider, isConfigured } from '@/services/firebase';
-import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { supabase, isSupabaseConfigured } from '@/config/supabase';
 
 const AuthContext = createContext(null);
 
@@ -12,29 +11,30 @@ export function AuthProvider({ children }) {
   const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
-    if (!isConfigured()) {
+    if (!isSupabaseConfigured()) {
       setLoading(false);
       return;
     }
 
-    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser) {
-        setUser({
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-          photoURL: firebaseUser.photoURL,
-        });
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser(transformUser(session.user));
+      }
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser(transformUser(session.user));
       } else {
         setUser(null);
       }
       setLoading(false);
     });
 
-    return () => unsub();
+    return () => subscription.unsubscribe();
   }, []);
 
-  // ── Demo login (tanpa Firebase) ──
   const demoLogin = async (name = 'User Demo', email = 'demo@user.com') => {
     await new Promise(r => setTimeout(r, 600));
     const demoUser = {
@@ -50,19 +50,16 @@ export function AuthProvider({ children }) {
   const loginWithGoogle = async () => {
     setActionLoading(true);
     try {
-      if (!isConfigured()) {
+      if (!isSupabaseConfigured()) {
         return await demoLogin();
       }
-      const result = await signInWithPopup(auth, googleProvider);
-      const fbUser = result.user;
-      const userData = {
-        uid: fbUser.uid,
-        email: fbUser.email,
-        displayName: fbUser.displayName,
-        photoURL: fbUser.photoURL,
-      };
-      setUser(userData);
-      return userData;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + '/login',
+        },
+      });
+      if (error) throw error;
     } catch (err) {
       console.error('Google sign-in error:', err);
       throw err;
@@ -74,8 +71,8 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     setActionLoading(true);
     try {
-      if (isConfigured()) {
-        await signOut(auth);
+      if (isSupabaseConfigured()) {
+        await supabase.auth.signOut();
       }
       await new Promise(r => setTimeout(r, 300));
       setUser(null);
@@ -95,4 +92,13 @@ export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
+}
+
+function transformUser(supabaseUser) {
+  return {
+    uid: supabaseUser.id,
+    email: supabaseUser.email || '',
+    displayName: supabaseUser.user_metadata?.full_name || supabaseUser.email?.split('@')[0] || 'User',
+    photoURL: supabaseUser.user_metadata?.avatar_url || null,
+  };
 }

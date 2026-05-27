@@ -1,3 +1,5 @@
+import { uploadImage } from './supabaseService';
+
 const compressImage = (file, maxWidth = 400, quality = 0.5) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -35,7 +37,7 @@ const pickImage = (capture = false) => {
       if (!file) { reject(new Error('Tidak ada gambar dipilih')); return; }
       try {
         const compressed = await compressImage(file);
-        resolve(compressed);
+        resolve({ dataUrl: compressed, file });
       } catch (err) {
         reject(new Error('Gagal mengompres gambar'));
       }
@@ -54,6 +56,17 @@ const dataUrlToBlob = (dataUrl) => {
   const ia = new Uint8Array(ab);
   for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
   return new Blob([ab], { type: mimeString });
+};
+
+export const uploadToSupabaseStorage = async (dataUrl) => {
+  try {
+    const blob = dataUrlToBlob(dataUrl);
+    const fileName = `item_${Date.now()}.jpg`;
+    return await uploadImage(blob, fileName);
+  } catch (e) {
+    console.warn('Supabase Storage upload failed, using base64 fallback:', e.message);
+    return dataUrl;
+  }
 };
 
 export const uploadToCloudinary = async (dataUrl, cloudName, uploadPreset) => {
