@@ -233,6 +233,7 @@ export default function DashboardPage() {
         open={activeMenu === 'available'}
         onClose={() => setActiveMenu(null)}
         title="Ketersediaan Barang"
+        noCloseAnim
         full
         footer={totalItems > 0 ? (
           <Link
@@ -279,7 +280,7 @@ export default function DashboardPage() {
       </Modal>
 
       {/* ── Menu Modal: Booking Status ── */}
-      <Modal open={activeMenu === 'pending'} onClose={() => setActiveMenu(null)} title="Status Booking" full>
+      <Modal open={activeMenu === 'pending'} onClose={() => setActiveMenu(null)} title="Status Booking" full noCloseAnim>
         <div className="space-y-2.5">
           {pendingBookings.length === 0 ? (
             <div className="text-center py-12">
@@ -301,7 +302,7 @@ export default function DashboardPage() {
       </Modal>
 
       {/* ── Menu Modal: Barang Sudah Diangkut ── */}
-      <Modal open={activeMenu === 'picked'} onClose={() => setActiveMenu(null)} title="Barang Sudah Diangkut" full>
+      <Modal open={activeMenu === 'picked'} onClose={() => setActiveMenu(null)} title="Barang Sudah Diangkut" full noCloseAnim>
         <div className="space-y-2.5">
           {pickedBookings.length === 0 ? (
             <div className="text-center py-12">
