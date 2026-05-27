@@ -1,6 +1,6 @@
 'use client';
 
-const PHONE_NUMBER = '62857322263965';
+const PHONE_NUMBER = '6285732263965';
 
 export default function WhatsAppButton() {
   const handleClick = () => {
