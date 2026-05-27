@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Navbar from '@/components/Navbar';
 import BookingCard from '@/components/BookingCard';
+import { useRealtime } from '@/hooks/useRealtime';
 import { useAuth } from '@/contexts/AuthContext';
 import { getBookings } from '@/services/dbService';
 import Toast from '@/components/Toast';
@@ -38,6 +39,8 @@ export default function BookingsPage() {
   }, [showToast]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  useRealtime('bookings', fetchData);
 
   const myBookings = useMemo(() => {
     if (!user?.email) return [];

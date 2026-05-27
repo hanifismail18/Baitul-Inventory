@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRealtime } from '@/hooks/useRealtime';
 import { useRouter } from 'next/navigation';
 import { getItems, getBookings, pickupBooking, getConfig } from '@/services/dbService';
 import { useAuth } from '@/contexts/AuthContext';
@@ -63,6 +64,10 @@ export default function DashboardPage() {
   }, [showToast]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  useRealtime('items', fetchData);
+  useRealtime('bookings', fetchData);
+  useRealtime('config', fetchData);
 
   const cartQtys = useMemo(() => {
     const q = {};

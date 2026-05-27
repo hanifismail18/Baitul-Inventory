@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Navbar from '@/components/Navbar';
 import BookingCard from '@/components/BookingCard';
+import { useRealtime } from '@/hooks/useRealtime';
 import { useAuth } from '@/contexts/AuthContext';
 import { getBookings, pickupBooking } from '@/services/dbService';
 import Toast from '@/components/Toast';
@@ -35,6 +36,8 @@ export default function PickupPage() {
   }, [showToast]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  useRealtime('bookings', fetchData);
 
   const waitingPickup = useMemo(() => {
     if (!user?.email) return [];

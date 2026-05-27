@@ -74,3 +74,9 @@ CREATE POLICY "Allow all config" ON config FOR ALL USING (true);
 --    1. Buat bucket baru: "item-images"
 --    2. Public bucket (centang Public)
 --    3. Di tab Policies, tambah policy: "Allow all" ON item-images FOR ALL USING (true)
+--
+-- D. Database > Replication > Enable Realtime:
+--    Pastikan tabel items, bookings, config sudah terdaftar di publikasi supabase_realtime
+ALTER PUBLICATION supabase_realtime ADD TABLE items;
+ALTER PUBLICATION supabase_realtime ADD TABLE bookings;
+ALTER PUBLICATION supabase_realtime ADD TABLE config;

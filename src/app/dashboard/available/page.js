@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Navbar from '@/components/Navbar';
 import ItemGridCard from '@/components/ItemGridCard';
 import ItemDetailModal from '@/components/ItemDetailModal';
+import { useRealtime } from '@/hooks/useRealtime';
 import { getItems, getBookings } from '@/services/dbService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
@@ -24,23 +25,25 @@ export default function AvailablePage() {
     setToast({ open: true, message, type });
   }, []);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [itemsData, bookingsData] = await Promise.all([
-          getItems(),
-          getBookings(),
-        ]);
-        setBaseItems(itemsData);
-        setBookings(bookingsData);
-      } catch (err) {
-        showToast('Gagal memuat data', 'error');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+  const fetchData = useCallback(async () => {
+    try {
+      const [itemsData, bookingsData] = await Promise.all([
+        getItems(),
+        getBookings(),
+      ]);
+      setBaseItems(itemsData);
+      setBookings(bookingsData);
+    } catch (err) {
+      showToast('Gagal memuat data', 'error');
+    } finally {
+      setLoading(false);
+    }
   }, [showToast]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  useRealtime('items', fetchData);
+  useRealtime('bookings', fetchData);
 
   const cartQtys = useMemo(() => {
     const q = {};
