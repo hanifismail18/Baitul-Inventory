@@ -69,7 +69,7 @@ export default function AdminPage() {
       const [itemsData, bookingsData] = await Promise.all([getItems(), getBookings()]);
       setItems(itemsData);
       setBookings(bookingsData);
-      setConfig(getConfig());
+      setConfig(await getConfig());
     } catch { showToast('Gagal memuat data', 'error'); }
     finally { setLoading(false); }
   };

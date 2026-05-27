@@ -51,7 +51,7 @@ export default function DashboardPage() {
       ]);
       setBaseItems(itemsData);
       setBookings(bookingsData);
-      setSiteConfig(getConfig());
+      setSiteConfig(await getConfig());
     } catch (err) {
       console.error('Fetch error:', err);
       showToast('Gagal memuat data', 'error');

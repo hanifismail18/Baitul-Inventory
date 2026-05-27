@@ -8,6 +8,7 @@ import {
   addBooking as supabaseAddBooking,
   updateBooking as supabaseUpdateBooking,
   getItemById as supabaseGetItemById,
+  getConfig as supabaseGetConfig,
   saveConfig as supabaseSaveConfig,
 } from './supabaseService';
 import { isSupabaseConfigured } from '@/config/supabase';
@@ -346,7 +347,16 @@ const DEFAULT_CONFIG = {
   welcomeSubtitle: 'Mau ambil atau cek barang inventaris? Silakan cek ketersediaan barang atau lihat status booking kamu di bawah ini, ya.',
 };
 
-export const getConfig = () => {
+export const getConfig = async () => {
+  if (isSupabaseConfigured()) {
+    try {
+      const remote = await supabaseGetConfig();
+      ls.set(STORAGE_KEYS.CONFIG, remote);
+      return remote;
+    } catch (e) {
+      console.warn('supabase getConfig failed, using localStorage:', e.message);
+    }
+  }
   if (typeof window === 'undefined') return { ...DEFAULT_CONFIG };
   const saved = ls.get(STORAGE_KEYS.CONFIG);
   return { ...DEFAULT_CONFIG, ...saved };

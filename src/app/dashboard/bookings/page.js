@@ -40,7 +40,8 @@ export default function BookingsPage() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const myBookings = useMemo(() => {
-    return bookings.filter(b => b.userId === user?.uid);
+    if (!user?.email) return [];
+    return bookings.filter(b => b.userEmail === user.email);
   }, [bookings, user]);
 
   const filteredBookings = useMemo(() => {

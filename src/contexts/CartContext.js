@@ -20,11 +20,11 @@ function cartReducer(state, action) {
       if (existing) {
         return state.map(i =>
           i.itemId === action.payload.itemId
-            ? { ...i, qty: Math.min(i.qty + action.payload.qty, action.payload.maxQty) }
+            ? { ...i, qty: Math.min(i.qty + action.payload.qty, i.maxQty) }
             : i
         );
       }
-      return [...state, { itemId: action.payload.itemId, name: action.payload.name, qty: action.payload.qty, maxQty: action.payload.maxQty }];
+      return [...state, { itemId: action.payload.itemId, name: action.payload.name, qty: Math.min(action.payload.qty, action.payload.maxQty), maxQty: action.payload.maxQty }];
     }
     case 'UPDATE_QTY':
       return state.map(i =>

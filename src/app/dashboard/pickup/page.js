@@ -37,7 +37,8 @@ export default function PickupPage() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const waitingPickup = useMemo(() => {
-    return bookings.filter(b => b.status === 'approved' && b.userId === user?.uid);
+    if (!user?.email) return [];
+    return bookings.filter(b => b.status === 'approved' && b.userEmail === user.email);
   }, [bookings, user]);
 
   const allPickupHistory = useMemo(() => {
