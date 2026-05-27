@@ -2,6 +2,7 @@ import {
   getItems as supabaseGetItems,
   addItem as supabaseAddItem,
   updateItem as supabaseUpdateItem,
+  deleteItem as supabaseDeleteItem,
   seedItems as supabaseSeedItems,
   getBookings as supabaseGetBookings,
   addBooking as supabaseAddBooking,
@@ -9,7 +10,7 @@ import {
   getItemById as supabaseGetItemById,
   saveConfig as supabaseSaveConfig,
 } from './supabaseService';
-import { supabase, isSupabaseConfigured } from '@/config/supabase';
+import { isSupabaseConfigured } from '@/config/supabase';
 import { initialItems } from '../data/initialItems';
 
 const STORAGE_KEYS = {
@@ -139,7 +140,7 @@ export const updateItem = async (id, updates) => {
 export const deleteItem = async (id) => {
   if (isSupabaseConfigured()) {
     try {
-      await supabase.from('items').delete().eq('id', id);
+      await supabaseDeleteItem(id);
       return;
     } catch (e) {
       console.warn('supabase deleteItem failed, using localStorage:', e.message);

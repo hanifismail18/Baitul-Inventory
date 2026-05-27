@@ -1,47 +1,40 @@
 import { supabase, STORAGE_BUCKET } from '@/config/supabase'
 
-const ITEM_COLUMNS = 'id, name, total_qty as "totalQty", available_qty as "availableQty", image_url as "imageUrl", created_at as "createdAt"'
-const BOOKING_COLUMNS = 'id, item_id as "itemId", item_name as "itemName", qty, user_email as "userEmail", user_name as "userName", status, created_at as "createdAt", approved_at as "approvedAt", picked_up_at as "pickedUpAt", returned_at as "returnedAt", expired_at as "expiredAt", notified_day1 as "notifiedDay1", notified_day2 as "notifiedDay2", notified_day3 as "notifiedDay3"'
-
 const withTimeout = (promise, ms = 8000) =>
   Promise.race([
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error(`Supabase timeout after ${ms}ms`)), ms)),
   ])
 
-const toDbItem = (data) => ({
-  name: data.name,
-  total_qty: Number(data.totalQty),
-  available_qty: Number(data.availableQty),
-  image_url: data.imageUrl || null,
-})
+// ─── TRANSFORM (snake_case → camelCase) ────────────────────────
 
-const toDbBooking = (data) => ({
-  item_id: data.itemId,
-  item_name: data.itemName || '',
-  qty: Number(data.qty),
-  user_email: data.userEmail || '',
-  user_name: data.userName || '',
-  status: data.status || 'pending',
-  created_at: data.createdAt || new Date().toISOString(),
-  approved_at: data.approvedAt || null,
-  picked_up_at: data.pickedUpAt || null,
-  returned_at: data.returnedAt || null,
-  expired_at: data.expiredAt || null,
-  notified_day1: data.notifiedDay1 || false,
-  notified_day2: data.notifiedDay2 || false,
-  notified_day3: data.notifiedDay3 || false,
-})
+const toCamel = (row) => {
+  if (!row) return row
+  const obj = {}
+  for (const key of Object.keys(row)) {
+    obj[key.replace(/_([a-z])/g, (_, c) => c.toUpperCase())] = row[key]
+  }
+  return obj
+}
+
+const toSnake = (obj) => {
+  if (!obj) return obj
+  const result = {}
+  for (const key of Object.keys(obj)) {
+    result[key.replace(/[A-Z]/g, c => '_' + c.toLowerCase())] = obj[key]
+  }
+  return result
+}
 
 // ─── ITEMS ──────────────────────────────────────────────────────
 
 export const getItems = async () => {
   try {
     const { data, error } = await withTimeout(
-      supabase.from('items').select(ITEM_COLUMNS).order('name')
+      supabase.from('items').select('*').order('name')
     )
     if (error) throw error
-    return data || []
+    return (data || []).map(toCamel)
   } catch (e) {
     console.warn('supabase: getItems failed', e.message)
     throw e
@@ -52,10 +45,10 @@ export const addItem = async (name, totalQty, imageUrl = null) => {
   const itemData = { name, totalQty, availableQty: Number(totalQty), imageUrl }
   try {
     const { data, error } = await withTimeout(
-      supabase.from('items').insert(toDbItem(itemData)).select(ITEM_COLUMNS)
+      supabase.from('items').insert(toSnake(itemData)).select()
     )
     if (error) throw error
-    return data?.[0] || itemData
+    return toCamel(data?.[0]) || itemData
   } catch (e) {
     console.warn('supabase: addItem failed', e.message)
     throw e
@@ -63,19 +56,24 @@ export const addItem = async (name, totalQty, imageUrl = null) => {
 }
 
 export const updateItem = async (id, updates) => {
-  const dbUpdates = {}
-  if (updates.name !== undefined) dbUpdates.name = updates.name
-  if (updates.totalQty !== undefined) dbUpdates.total_qty = Number(updates.totalQty)
-  if (updates.availableQty !== undefined) dbUpdates.available_qty = Number(updates.availableQty)
-  if (updates.imageUrl !== undefined) dbUpdates.image_url = updates.imageUrl
   try {
     const { data, error } = await withTimeout(
-      supabase.from('items').update(dbUpdates).eq('id', id).select(ITEM_COLUMNS)
+      supabase.from('items').update(toSnake(updates)).eq('id', id).select()
     )
     if (error) throw error
-    return data?.[0] || { id, ...updates }
+    return toCamel(data?.[0]) || { id, ...updates }
   } catch (e) {
     console.warn('supabase: updateItem failed', e.message)
+    throw e
+  }
+}
+
+export const deleteItem = async (id) => {
+  try {
+    const { error } = await supabase.from('items').delete().eq('id', id)
+    if (error) throw error
+  } catch (e) {
+    console.warn('supabase: deleteItem failed', e.message)
     throw e
   }
 }
@@ -85,11 +83,11 @@ export const seedItems = async (items) => {
     const { count, error: countError } = await supabase.from('items').select('*', { count: 'exact', head: true })
     if (countError) throw countError
     if (count > 0) return { seeded: false, count }
-    const dbItems = items.map((item, idx) => ({
+    const dbItems = items.map(item => toSnake({
       name: item.name,
-      total_qty: Number(item.totalQty),
-      available_qty: Number(item.availableQty),
-      image_url: item.imageUrl || null,
+      totalQty: Number(item.totalQty),
+      availableQty: Number(item.availableQty),
+      imageUrl: item.imageUrl || null,
     }))
     const { data, error } = await supabase.from('items').insert(dbItems).select()
     if (error) throw error
@@ -105,10 +103,10 @@ export const seedItems = async (items) => {
 export const getBookings = async () => {
   try {
     const { data, error } = await withTimeout(
-      supabase.from('bookings').select(BOOKING_COLUMNS).order('created_at', { ascending: false })
+      supabase.from('bookings').select('*').order('created_at', { ascending: false })
     )
     if (error) throw error
-    return data || []
+    return (data || []).map(toCamel)
   } catch (e) {
     console.warn('supabase: getBookings failed', e.message)
     throw e
@@ -134,10 +132,10 @@ export const addBooking = async (bookingData) => {
   }
   try {
     const { data: result, error } = await withTimeout(
-      supabase.from('bookings').insert(toDbBooking(data)).select(BOOKING_COLUMNS)
+      supabase.from('bookings').insert(toSnake(data)).select()
     )
     if (error) throw error
-    return result?.[0] || data
+    return toCamel(result?.[0]) || data
   } catch (e) {
     console.warn('supabase: addBooking failed', e.message)
     throw e
@@ -145,21 +143,12 @@ export const addBooking = async (bookingData) => {
 }
 
 export const updateBooking = async (id, updates) => {
-  const dbUpdates = {}
-  if (updates.status !== undefined) dbUpdates.status = updates.status
-  if (updates.approvedAt !== undefined) dbUpdates.approved_at = updates.approvedAt
-  if (updates.pickedUpAt !== undefined) dbUpdates.picked_up_at = updates.pickedUpAt
-  if (updates.returnedAt !== undefined) dbUpdates.returned_at = updates.returnedAt
-  if (updates.expiredAt !== undefined) dbUpdates.expired_at = updates.expiredAt
-  if (updates.notifiedDay1 !== undefined) dbUpdates.notified_day1 = updates.notifiedDay1
-  if (updates.notifiedDay2 !== undefined) dbUpdates.notified_day2 = updates.notifiedDay2
-  if (updates.notifiedDay3 !== undefined) dbUpdates.notified_day3 = updates.notifiedDay3
   try {
     const { data, error } = await withTimeout(
-      supabase.from('bookings').update(dbUpdates).eq('id', id).select(BOOKING_COLUMNS)
+      supabase.from('bookings').update(toSnake(updates)).eq('id', id).select()
     )
     if (error) throw error
-    return data?.[0]
+    return toCamel(data?.[0])
   } catch (e) {
     console.warn('supabase: updateBooking failed', e.message)
     throw e
@@ -169,10 +158,10 @@ export const updateBooking = async (id, updates) => {
 export const getItemById = async (id) => {
   try {
     const { data, error } = await withTimeout(
-      supabase.from('items').select(ITEM_COLUMNS).eq('id', id).single()
+      supabase.from('items').select('*').eq('id', id).single()
     )
     if (error) throw error
-    return data
+    return toCamel(data)
   } catch (e) {
     console.warn('supabase: getItemById failed', e.message)
     throw e
@@ -196,12 +185,11 @@ export const getConfig = async () => {
 }
 
 export const saveConfig = async (updates) => {
-  const dbUpdates = {}
-  if (updates.welcomeHeading !== undefined) dbUpdates.welcome_heading = updates.welcomeHeading
-  if (updates.welcomeSubtitle !== undefined) dbUpdates.welcome_subtitle = updates.welcomeSubtitle
-  dbUpdates.updated_at = new Date().toISOString()
   try {
-    const { error } = await supabase.from('config').update(dbUpdates).eq('id', 1)
+    const { error } = await supabase.from('config').update({
+      ...toSnake(updates),
+      updated_at: new Date().toISOString(),
+    }).eq('id', 1)
     if (error) throw error
     return true
   } catch (e) {
